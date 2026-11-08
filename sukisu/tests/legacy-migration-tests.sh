@@ -48,6 +48,8 @@ if hma_legacy_migrate "$TMP/link"; then
 fi
 [ ! -e "$TMP/target/remove" ]
 # Independent cleanup must remove only recognizable scripts.
+# The first cleanup removes the now-empty directory as intended.
+mkdir -p "$ADB/boot-completed.d"
 printf '#!/system/bin/sh\nMODDIR=/data/adb/modules/hma_oss_zygisk\ncp "$MODDIR/module.prop.bak" "$MODDIR/module.prop"\n' > "$ADB/boot-completed.d/hmaoss.sh"
 hma_legacy_cleanup_scripts "$ADB"
 [ ! -f "$ADB/boot-completed.d/hmaoss.sh" ]
