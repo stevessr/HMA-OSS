@@ -34,6 +34,21 @@ run_action() {
   set -e
 }
 
+# Installation and migration may not activate an old and new hook together.
+printf 'unit-boot\n' > "$MOD/installed_boot_id"
+run_action
+[ "$ACTION_RC" -eq 12 ]
+[ ! -e "$MOD/fake-inject-called" ]
+printf 'previous-boot\n' > "$MOD/installed_boot_id"
+run_action
+[ "$ACTION_RC" -eq 0 ]
+[ ! -e "$MOD/installed_boot_id" ]
+[ -f "$MOD/enabled" ]
+run_action
+[ "$ACTION_RC" -eq 0 ]
+[ ! -f "$MOD/enabled" ]
+rm -f "$MOD/fake-inject-called"
+
 # A failed native attempt in the current boot is never retried.
 printf 'unit-boot\n' > "$MOD/injection_failed"
 run_action

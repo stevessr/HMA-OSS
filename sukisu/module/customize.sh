@@ -1,22 +1,35 @@
 #!/system/bin/sh
-# SukiSU / KernelSU module installer: reject unknown root environments.
-[ -n "$KSU" ] || abort '! SukiSU/KernelSU environment required (KSU is unset)'
+# KernelSU/SukiSU's installer sources customize.sh after extracting MODPATH.
+[ -n "$KSU" ] || abort '! Install from SukiSU/KernelSU, not recovery or another root manager'
 ABI=$(getprop ro.product.cpu.abi)
-[ "$ABI" = "arm64-v8a" ] || abort '! Native backend supports arm64-v8a only'
+[ "$ABI" = "arm64-v8a" ] || abort '! This module requires arm64-v8a; detected: '"$ABI"
 SDK=$(getprop ro.build.version.sdk)
-case "$SDK" in ''|*[!0-9]*) abort '! Android SDK level cannot be determined' ;; esac
-[ "$SDK" -ge 29 ] || abort '! Native backend requires Android 10 (API 29) or newer'
-[ -f "$MODPATH/bin/hma-injector" ] || abort '! Native injector is missing'
-[ -f "$MODPATH/lib/libhma-payload.so" ] || abort '! Native payload is missing'
-[ -f "$MODPATH/manager.apk" ] || abort '! HMA-OSS manager APK is missing'
-# Running the old backend alongside this one can double-hook system_server.
-for OLD in /data/adb/modules/hma_oss_zygisk /data/adb/modules_update/hma_oss_zygisk; do
-  [ -d "$OLD" ] && abort '! Remove the old hma_oss_zygisk module and reboot before installing'
-done
+case "$SDK" in ''|*[!0-9]*) abort '! Cannot determine Android API level' ;; esac
+[ "$SDK" -ge 29 ] || abort '! Android 10 / API 29+ is required'
+[ -n "$MODPATH" ] && [ -d "$MODPATH" ] || abort '! KernelSU module extraction failed (MODPATH invalid)'
+[ -f "$MODPATH/module.prop" ] || abort '! module.prop missing'
+[ -f "$MODPATH/legacy-cleanup.sh" ] || abort '! Legacy cleanup helper missing; use a complete module ZIP'
+[ -f "$MODPATH/bin/hma-injector" ] || abort '! Native injector missing'
+[ -f "$MODPATH/lib/libhma-payload.so" ] || abort '! Native payload missing'
+[ -f "$MODPATH/manager.apk" ] || abort '! HMA-OSS manager APK missing'
+
+. "$MODPATH/legacy-cleanup.sh" || abort '! Cannot load legacy cleanup helper'
+# Stop aborting just because the original HMA module exists. Remove it with
+# KernelSU's own disable/remove markers; an active hook is unloaded on reboot.
+hma_legacy_migrate /data/adb || abort '! Legacy cleanup failed; inspect the installer output'
+
+# Prevent overlapping old/new system_server hooks in the current boot, even if
+# someone taps the Action button directly after a successful install.
+BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+[ -n "$BOOT_ID" ] || abort '! Cannot read boot ID; refusing unsafe hot installation'
+printf '%s\n' "$BOOT_ID" > "$MODPATH/installed_boot_id" ||
+  abort '! Cannot write reboot-required marker'
+
 rm -f "$MODPATH/enabled" "$MODPATH/injected_pid" "$MODPATH/injection_failed"
-mkdir -p "$MODPATH/log"
+mkdir -p "$MODPATH/log" || abort '! Cannot create module log directory'
 set_perm "$MODPATH/bin/hma-injector" 0 0 0755
 set_perm "$MODPATH/lib/libhma-payload.so" 0 0 0644
 set_perm "$MODPATH/manager.apk" 0 0 0644
-ui_print '- Experimental SukiSU backend installed, but not enabled.'
-ui_print '- Install the bundled manager APK. Use Action for an explicit first test.'
+ui_print '- Previous HMA-OSS Zygisk module and legacy boot scripts handled automatically.'
+ui_print '- HMA settings were preserved; manager APK was not uninstalled.'
+ui_print '- REBOOT required before first Action test (no double injection).'

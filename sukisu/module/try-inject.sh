@@ -12,6 +12,10 @@ MODDIR="${0%/*}"
 
 BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 [ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
+if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID"; then
+  echo 'Reboot required before injecting the standalone HMA backend'
+  exit 12
+fi
 LOCKDIR="$MODDIR/.inject-lock"
 if ! hma_acquire_lock "$LOCKDIR" "$BOOT_ID"; then
   echo 'An injection attempt is already running or has an uncleared lock'
