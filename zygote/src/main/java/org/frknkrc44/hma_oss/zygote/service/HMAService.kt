@@ -79,6 +79,8 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     val hooker = BulkHooker()
     val dataHolder = HMAServiceDataHolder()
+    private val lazyHookLock = Any()
+    @Volatile private var frameworkHooksInstalled = false
 
     private var managerWorkMode: Int = Constants.MANAGER_WORK_MODE_UNKNOWN
 
@@ -131,7 +133,10 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             }
 
             if (managerWorkMode != Constants.MANAGER_WORK_MODE_NO_HOOKS) {
-                installHooks()
+                // Start Binder/control services without altering framework methods.
+                // Only activate ART hooks when an app is explicitly scoped (or
+                // a user configured defaultConfig for future apps).
+                installHooksWhenConfigured()
 
                 if (hooker.hooksWasCrashed) {
                     managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
@@ -296,6 +301,34 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
         }
 
         reloadPresets(!isFileAvailable)
+    }
+
+    /**
+     * Lazy framework-hook activation: this backend never injects into app
+     * processes. It lives in system_server; configured caller scopes decide
+     * whether a framework hook is installed/has any filtering effect.
+     * A new scoped app activates hooks on demand through writeConfig or the
+     * file observer, without needing a second system_server ptrace attach.
+     */
+    private fun installHooksWhenConfigured() {
+        if (appUid <= 0 ||
+            managerWorkMode == Constants.MANAGER_WORK_MODE_NO_HOOKS ||
+            managerWorkMode == Constants.MANAGER_WORK_MODE_CRASHED ||
+            hooker.hooksWasCrashed ||
+            (config.scope.isEmpty() && config.defaultConfig == null)
+        ) return
+
+        synchronized(lazyHookLock) {
+            if (frameworkHooksInstalled || hooker.hooksWasCrashed) return
+            installHooks()
+            if (hooker.hooksWasCrashed) {
+                managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
+                saveModuleStatus()
+            } else {
+                frameworkHooksInstalled = true
+                logI(TAG) { "Lazy hooks activated for configured app scopes" }
+            }
+        }
     }
 
     private fun installHooks() {
@@ -526,6 +559,9 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             }
         }
 
+        // New per-app settings can enable hooks without a second native
+        // injection; removing a scope immediately stops its filtering effect.
+        installHooksWhenConfigured()
         writeFilterCount(true)
 
         writtenByManager = false
@@ -828,6 +864,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             writeConfig(config.toString())
         }
 
+        installHooksWhenConfigured()
         logI(TAG) { "Config loaded" }
     }
 

@@ -12,6 +12,19 @@ hma_install_reboot_pending "$TEMP/installed_boot_id" unit-boot
 [ ! -e "$TEMP/installed_boot_id" ]
 ! hma_install_reboot_pending "$TEMP/installed_boot_id" next-boot
 
+# A framework-only restart changes system_server's start ticks without
+# changing the kernel UUID, and must clear the reboot gate.
+printf 'same-kernel 123\n' > "$TEMP/installed_boot_id"
+hma_install_reboot_pending "$TEMP/installed_boot_id" same-kernel 123
+[ -f "$TEMP/installed_boot_id" ]
+! hma_install_reboot_pending "$TEMP/installed_boot_id" same-kernel 124
+[ ! -f "$TEMP/installed_boot_id" ]
+
+# Old one-field markers still preserve same-boot lockouts; new boots clear.
+printf 'old-kernel\n' > "$TEMP/installed_boot_id"
+hma_install_reboot_pending "$TEMP/installed_boot_id" old-kernel 123
+! hma_install_reboot_pending "$TEMP/installed_boot_id" different-kernel 123
+
 # Exercise lock helper BEFORE any other function so nested function definitions fail.
 hma_acquire_lock "$TEMP/early-lock" boot-A
 hma_release_lock "$TEMP/early-lock"

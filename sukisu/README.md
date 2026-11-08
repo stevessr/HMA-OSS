@@ -64,3 +64,11 @@ The pinned experimental certificate SHA-256 fingerprint is:
 **This test private key is publicly downloadable and cannot authenticate official releases.** To produce a trusted release, supply a separate private keystore via local `local.properties` (`fileDir`, `storePassword`, `keyAlias`, `keyPassword`). An unsigned release remains unsigned without that configuration.
 
 **One-time certificate migration:** Android will still reject updating an already-installed APK signed by an older random debug/official certificate. The module installer never silently deletes app data. Back up the manager's app-specific settings (and HMA configurations if desired), uninstall the old manager APK, then install the new signed manager. All future experimental updates signed with this pinned public test key will install over one another.
+
+
+## Scoped lazy ART hook activation and reboot state fix
+
+- This SukiSU backend injects **only into `system_server`**, not every user-app process. It starts its manager Binder/control service first and **lazily installs framework ART hooks only after `config.scope` contains one or more configured app entries**. An explicit `defaultConfig` also activates hooks, because HMA applies that policy to newly installed apps.
+- App configuration changes activate hooks without repeating the native loader or restarting the system. Removing a scope immediately disables that app's filtering behavior via existing caller checks; hooks cannot be safely hot-uninstalled from `system_server` after activation and remain resident until reboot.
+- Installation stores both the kernel boot ID and `system_server` start ticks. A full reboot or Android framework-only restart unlocks the installer gate; older single-field markers are supported. A previous-boot `injection_failed` marker no longer disables autostart forever.
+- Neither per-app ptrace attachment nor a separate app-process injection engine is implemented. Scoped filtering operates in the centralized PackageManager/framework service and unconfigured callers retain the original system behavior.

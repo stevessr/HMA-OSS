@@ -14,6 +14,7 @@ case "$SDK" in ''|*[!0-9]*) abort '! Cannot determine Android API level' ;; esac
 [ -f "$MODPATH/manager.apk" ] || abort '! HMA-OSS manager APK missing'
 
 . "$MODPATH/legacy-cleanup.sh" || abort '! Cannot load legacy cleanup helper'
+. "$MODPATH/state.sh" || abort '! Cannot load boot state helpers'
 # Stop aborting just because the original HMA module exists. Remove it with
 # KernelSU's own disable/remove markers; an active hook is unloaded on reboot.
 hma_legacy_migrate /data/adb || abort '! Legacy cleanup failed; inspect the installer output'
@@ -22,7 +23,9 @@ hma_legacy_migrate /data/adb || abort '! Legacy cleanup failed; inspect the inst
 # someone taps the Action button directly after a successful install.
 BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 [ -n "$BOOT_ID" ] || abort '! Cannot read boot ID; refusing unsafe hot installation'
-printf '%s\n' "$BOOT_ID" > "$MODPATH/installed_boot_id" ||
+# Record process identity too, for devices that use framework-only soft reboot.
+BOOT_SERVER_START=$(hma_system_server_start)
+printf '%s %s\n' "$BOOT_ID" "$BOOT_SERVER_START" > "$MODPATH/installed_boot_id" ||
   abort '! Cannot write reboot-required marker'
 
 rm -f "$MODPATH/enabled" "$MODPATH/injected_pid" "$MODPATH/injection_failed"

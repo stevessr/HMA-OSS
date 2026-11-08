@@ -49,6 +49,13 @@ run_action
 [ ! -f "$MOD/enabled" ]
 rm -f "$MOD/fake-inject-called"
 
+# A soft reboot with the same kernel boot ID and a new system_server must
+# unlock the gate (tested with state.sh fixture below).
+. "$ROOT/sukisu/module/state.sh"
+printf 'unit-boot 250\n' > "$MOD/installed_boot_id"
+hma_install_reboot_pending "$MOD/installed_boot_id" unit-boot 250
+! hma_install_reboot_pending "$MOD/installed_boot_id" unit-boot 251
+
 # A failed native attempt in the current boot is never retried.
 printf 'unit-boot\n' > "$MOD/injection_failed"
 run_action

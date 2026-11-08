@@ -1,17 +1,46 @@
 #!/system/bin/sh
 # Shared fail-closed state checks. This file only defines functions.
 # An install/migration cannot be hot-activated within the same boot.
+# Return process start ticks for the current system_server. Android's soft
+# reboot restarts this process without changing the kernel boot ID.
+hma_system_server_start() {
+  hma_server_pid=$(pidof system_server 2>/dev/null | awk '{print $1}')
+  case "$hma_server_pid" in ''|*[!0-9]*) return 1 ;; esac
+  hma_process_start "$hma_server_pid"
+}
+
+# Module may have been installed in the same kernel boot but an Android
+# framework soft reboot has since replaced system_server. Legacy one-field
+# markers are also accepted for upgrades from earlier experimental builds.
 hma_install_reboot_pending() {
   [ -e "$1" ] || return 1
   [ -r "$1" ] || return 0
-  installed_boot=$(cat "$1" 2>/dev/null) || return 0
-  [ -n "$installed_boot" ] || return 0
-  if [ "$installed_boot" = "$2" ]; then
-    return 0
+  hma_marker_boot='' hma_marker_start=''
+  IFS=' ' read -r hma_marker_boot hma_marker_start < "$1" || return 0
+  [ -n "$hma_marker_boot" ] || return 0
+  if [ "$hma_marker_boot" != "$2" ]; then
+    rm -f "$1" || return 0
+    return 1
   fi
-  # A different boot proves that the old system_server has been restarted.
-  rm -f "$1" || return 0
-  return 1
+  # The same kernel may host a fresh system_server after a framework restart.
+  if [ -n "$hma_marker_start" ] && [ -n "$3" ] &&
+     [ "$hma_marker_start" != "$3" ]; then
+    rm -f "$1" || return 0
+    return 1
+  fi
+  # Older builds wrote just a boot ID. If kernel boot time is strictly newer
+  # than the persisted marker timestamp, a full reboot has occurred.
+  # This fallback never unlocks a marker merely because time elapsed.
+  hma_boot_epoch=$(awk '$1 == "btime" { print $2; exit }' /proc/stat 2>/dev/null)
+  hma_marker_time=$(stat -c %Y "$1" 2>/dev/null)
+  case "$hma_boot_epoch:$hma_marker_time" in
+    *[!0-9:]*|:*|*:) return 0 ;;
+  esac
+  if [ "$hma_marker_time" -lt "$hma_boot_epoch" ]; then
+    rm -f "$1" || return 0
+    return 1
+  fi
+  return 0
 }
 
 hma_process_start() {

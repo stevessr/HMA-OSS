@@ -3,7 +3,7 @@ MODDIR="${0%/*}"
 . "$MODDIR/state.sh" || exit 1
 BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 [ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
-if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID"; then
+if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID" "$(hma_system_server_start)"; then
   echo 'Reboot required after installation/migration before enabling HMA hooks.'
   exit 12
 fi
