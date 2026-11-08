@@ -5,6 +5,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 . "$ROOT/sukisu/module/state.sh"
 TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
+printf 'unit-boot\n' > "$TEMP/installed_boot_id"
+hma_install_reboot_pending "$TEMP/installed_boot_id" unit-boot
+[ -f "$TEMP/installed_boot_id" ]
+! hma_install_reboot_pending "$TEMP/installed_boot_id" next-boot
+[ ! -e "$TEMP/installed_boot_id" ]
+! hma_install_reboot_pending "$TEMP/installed_boot_id" next-boot
+
 # Exercise lock helper BEFORE any other function so nested function definitions fail.
 hma_acquire_lock "$TEMP/early-lock" boot-A
 hma_release_lock "$TEMP/early-lock"

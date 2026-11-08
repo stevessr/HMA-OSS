@@ -6,7 +6,7 @@ The experimental native AArch64 loader attaches to system_server using ptrace, c
 
 The SukiSU/KernelSU ZIP includes module.prop, a manager APK, the native injector, JNI payload and late-start scripts. On first install, **injection is disabled**; use the module Action button to attempt exactly one test. The injector does not request permissive SELinux, does not weaken Android sandboxing globally, and will report a failure if ptrace or native loading is forbidden.
 
-The original HMA configuration files in /data/misc/hide_my_applist_* are retained. Do not enable alongside the old hma_oss_zygisk module.
+The original HMA configuration files in /data/misc/hide_my_applist_* are retained. Installing this version **automatically disables and schedules removal** of the legacy `hma_oss_zygisk` module from both active and staged module directories. It also removes known original `hmaoss.sh` boot-script leftovers while leaving unrelated files untouched. **Reboot once before pressing Action**, because previously injected hooks cannot be unloaded safely until system_server restarts.
 
 ## Build
 
@@ -42,3 +42,11 @@ The module targets **arm64-v8a Android API 29+** and requires a SukiSU/KernelSU-
 The GitHub Actions workflow builds on feature-branch pushes, pull requests and `master` pushes. Host-side regression coverage includes module Action enable/disable, failed-attempt lockout, lock conflicts, boot-scoped lock reclamation, shell-state parsing, APK DEX-class presence, ELF architecture, and final ZIP integrity. This is *not* a substitute for on-device system_server behavior or SELinux testing.
 
 The native injector is additionally restricted to Android's `system_server` process (UID 1000) and rejects oversize APK paths before copying data into a remote memory mapping.
+
+## Installation migration and safe removal
+
+- The new module replaces the old installer failure when `/data/adb/modules/hma_oss_zygisk` still exists. It validates `module.prop`, writes KernelSU `disable` and `remove` flags, cleans positively identified old `hmaoss.sh` boot scripts, and lets KernelSU remove the legacy module on reboot.
+- Installation is **not** a hot migration. Any Action or native injection attempt in the installation boot is rejected; reboot before activation to avoid double-hooking a live `system_server`.
+- Uninstall cleans its own injected-state flags and old HMA boot-script remnants. Persistent HMA settings under `/data/misc/hide_my_applist_*` and Android app data are not deleted. Other modules' files and symlinks are never removed by the migration helper.
+- If the bundled manager APK and an existing manager use different signing keys, Android will reject an in-place APK update. Back up user settings before manually replacing the manager APK. The installer never silently uninstalls an app or wipes its private data.
+- GitHub Actions runs a fixture-based legacy migration test covering active/staged old modules, orphan boot scripts, foreign module IDs, symlinks and preservation of user configuration.

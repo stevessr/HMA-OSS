@@ -1,5 +1,19 @@
 #!/system/bin/sh
 # Shared fail-closed state checks. This file only defines functions.
+# An install/migration cannot be hot-activated within the same boot.
+hma_install_reboot_pending() {
+  [ -e "$1" ] || return 1
+  [ -r "$1" ] || return 0
+  installed_boot=$(cat "$1" 2>/dev/null) || return 0
+  [ -n "$installed_boot" ] || return 0
+  if [ "$installed_boot" = "$2" ]; then
+    return 0
+  fi
+  # A different boot proves that the old system_server has been restarted.
+  rm -f "$1" || return 0
+  return 1
+}
+
 hma_process_start() {
   # /proc/PID/stat field 22, relative to the first field after "(comm)".
   sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | awk '{print $20}'
