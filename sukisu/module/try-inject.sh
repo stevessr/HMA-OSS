@@ -1,45 +1,94 @@
 #!/system/bin/sh
+# Manual/boot injector, serialized so SukiSU actions cannot race boot services.
 MODDIR="${0%/*}"
-[ -f "$MODDIR/disable" ] && exit 1
-[ -f "$MODDIR/injection_failed" ] && exit 1
-[ -x "$MODDIR/bin/hma-injector" ] || exit 1
-[ -f "$MODDIR/lib/libhma-payload.so" ] || exit 1
-PID=$(pidof system_server | awk '{print $1}')
-[ -n "$PID" ] || { echo 'system_server not found'; exit 1; }
-[ -f "$MODDIR/injected_pid" ] && [ "$(cat "$MODDIR/injected_pid")" = "$PID" ] && exit 0
-APK=$(cmd package path org.frknkrc44.hma_oss 2>/dev/null | sed -n 's/^package:\(.*base\.apk\)$/\1/p' | head -n 1)
-[ -f "$APK" ] || { echo 'HMA manager APK not installed'; exit 1; }
-# Mark failure before attaching, so an abrupt crash never triggers boot retries.
-touch "$MODDIR/injection_failed"
-START=$(date +%s)
-"$MODDIR/bin/hma-injector" "$PID" "$MODDIR/lib/libhma-payload.so" "$APK"
-RESULT=$?
-if [ "$RESULT" -ne 0 ]; then
-  echo "Native loader failed ($RESULT)"
-  rm -f "$MODDIR/enabled"
-  exit "$RESULT"
+. "$MODDIR/state.sh" || exit 1
+[ -f "$MODDIR/disable" ] && { echo 'Module is disabled'; exit 1; }
+[ -f "$MODDIR/injection_failed" ] && {
+  echo 'Previous injection failed; reboot and explicitly retry in Action'
+  exit 1
+}
+[ -x "$MODDIR/bin/hma-injector" ] || { echo 'Native injector missing'; exit 1; }
+[ -f "$MODDIR/lib/libhma-payload.so" ] || { echo 'JNI payload missing'; exit 1; }
+
+LOCKDIR="$MODDIR/.inject-lock"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo 'An injection attempt is already running or was interrupted; do not retry blindly'
+  exit 10
 fi
-# Native return is asynchronous; require a fresh HMAService workMode=1 status.
-COUNT=0
-while [ "$COUNT" -lt 30 ]; do
-  CURRENT=$(pidof system_server | awk '{print $1}')
-  [ "$CURRENT" = "$PID" ] || break
+trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+trap 'exit 130' INT TERM HUP
+
+PID=$(pidof system_server | awk '{print $1}')
+case "$PID" in ''|*[!0-9]*) echo 'Cannot find a valid system_server PID'; exit 1 ;; esac
+BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+START_TICKS=$(hma_process_start "$PID")
+[ -n "$BOOT_ID" ] && [ -n "$START_TICKS" ] || {
+  echo 'Cannot establish target process identity'
+  exit 1
+}
+
+# A previously verified injection in this exact process must never be repeated.
+if hma_pid_marker_matches "$MODDIR/injected_pid" "$BOOT_ID" "$PID" "$START_TICKS"; then
   for STATUS in /data/misc/hide_my_applist_*/status.json; do
-    [ -f "$STATUS" ] || continue
-    MODIFIED=$(stat -c %Y "$STATUS" 2>/dev/null || echo 0)
-    if [ "$MODIFIED" -ge "$START" ] &&
-      grep -Eq '"workMode"[[:space:]]*:[[:space:]]*1([^0-9]|$)' "$STATUS"; then
-      sleep 5
-      [ "$(pidof system_server | awk '{print $1}')" = "$PID" ] || break 2
-      echo "$PID" > "$MODDIR/injected_pid"
-      rm -f "$MODDIR/injection_failed"
-      echo "HMAService reports running in system_server PID $PID"
+    if hma_workmode_ok "$STATUS"; then
+      echo "Already injected and verified for system_server PID $PID"
       exit 0
     fi
   done
-  COUNT=$((COUNT+1))
+  echo 'Previously injected process is unhealthy; reboot before retrying'
+  exit 9
+fi
+
+APK=$(cmd package path org.frknkrc44.hma_oss 2>/dev/null |
+  sed -n 's/^package:\(.*base\.apk\)$/\1/p' | head -n 1)
+[ -n "$APK" ] && [ -r "$APK" ] || {
+  echo 'HMA manager APK is missing or unreadable by the injector'
+  exit 1
+}
+
+# mtime is in whole seconds on common Android stat implementations. Deliberately
+# cross a second boundary to exclude a workMode=1 left by a previous boot/load.
+BASELINE=$(date +%s)
+sleep 2
+[ "$(pidof system_server | awk '{print $1}')" = "$PID" ] &&
+  [ "$(hma_process_start "$PID")" = "$START_TICKS" ] || {
+  echo 'system_server restarted before the attempt'
+  exit 1
+}
+
+# Persist failure BEFORE attaching: a system_server crash cannot cause boot loops.
+printf '%s\n' "$BOOT_ID" > "$MODDIR/injection_failed" || exit 1
+"$MODDIR/bin/hma-injector" "$PID" "$MODDIR/lib/libhma-payload.so" "$APK"
+RESULT=$?
+if [ "$RESULT" -ne 0 ]; then
+  echo "Native loader failed ($RESULT); do not retry in this boot"
+  rm -f "$MODDIR/enabled"
+  exit "$RESULT"
+fi
+
+COUNT=0
+while [ "$COUNT" -lt 45 ]; do
+  [ "$(pidof system_server | awk '{print $1}')" = "$PID" ] &&
+    [ "$(hma_process_start "$PID")" = "$START_TICKS" ] || break
+  for STATUS in /data/misc/hide_my_applist_*/status.json; do
+    if hma_fresh_workmode_ok "$STATUS" "$BASELINE"; then
+      sleep 5
+      [ "$(pidof system_server | awk '{print $1}')" = "$PID" ] &&
+        [ "$(hma_process_start "$PID")" = "$START_TICKS" ] || break 2
+      MARKER_TMP="$MODDIR/injected_pid.$$"
+      if printf '%s %s %s\n' "$BOOT_ID" "$PID" "$START_TICKS" > "$MARKER_TMP" &&
+        mv -f "$MARKER_TMP" "$MODDIR/injected_pid"; then
+        rm -f "$MODDIR/injection_failed"
+        echo "HMAService verified in system_server PID $PID"
+        exit 0
+      fi
+      rm -f "$MARKER_TMP"
+      break 2
+    fi
+  done
+  COUNT=$((COUNT + 1))
   sleep 1
 done
-echo 'HMAService did not become healthy; autostart disabled'
+echo 'No fresh healthy HMAService handshake; autostart disabled, reboot required'
 rm -f "$MODDIR/enabled"
 exit 8
