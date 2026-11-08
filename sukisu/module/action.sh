@@ -1,22 +1,23 @@
 #!/system/bin/sh
 MODDIR="${0%/*}"
+. "$MODDIR/state.sh" || exit 1
+BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+[ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
 [ -f "$MODDIR/disable" ] && { echo 'Module is disabled in SukiSU'; exit 1; }
 
 # Disabling autostart must not race an active system_server injection.
 if [ -f "$MODDIR/enabled" ]; then
   LOCKDIR="$MODDIR/.inject-lock"
-  mkdir "$LOCKDIR" 2>/dev/null || {
+  hma_acquire_lock "$LOCKDIR" "$BOOT_ID" || {
     echo 'Injection in progress; retry Action after it finishes'
     exit 10
   }
   rm -f "$MODDIR/enabled"
-  rmdir "$LOCKDIR"
+  hma_release_lock "$LOCKDIR"
   echo 'Autostart disabled. Loaded hooks remain until reboot.'
   exit 0
 fi
 
-BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
-[ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
 if [ -f "$MODDIR/injection_failed" ]; then
   FAILED_BOOT=$(cat "$MODDIR/injection_failed" 2>/dev/null)
   if [ "$FAILED_BOOT" = "$BOOT_ID" ]; then

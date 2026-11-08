@@ -12,11 +12,36 @@ hma_pid_marker_matches() {
   [ -n "$local_boot" ] && [ -n "$local_start" ] &&
     [ "$local_boot" = "$2" ] && [ "$local_pid" = "$3" ] &&
     [ "$local_start" = "$4" ]
+ 
+# Atomically lock operations. A lock abandoned on a previous boot is safe to
+# discard; never steal one created in the current boot.
+hma_acquire_lock() {
+  lock_path="$1" lock_boot="$2"
+  if mkdir "$lock_path" 2>/dev/null; then
+    printf '%s\n' "$lock_boot" > "$lock_path/boot" || {
+      rmdir "$lock_path" 2>/dev/null || true
+      return 1
+    }
+    return 0
+  fi
+  [ -r "$lock_path/boot" ] || return 1
+  [ "$(cat "$lock_path/boot" 2>/dev/null)" != "$lock_boot" ] || return 1
+  rm -f "$lock_path/boot" || return 1
+  rmdir "$lock_path" 2>/dev/null || return 1
+  mkdir "$lock_path" 2>/dev/null || return 1
+  printf '%s\n' "$lock_boot" > "$lock_path/boot" || return 1
+}
+
+hma_release_lock() {
+  rm -f "$1/boot"
+  rmdir "$1" 2>/dev/null || true
+}
 }
 
 hma_workmode_ok() {
   [ -r "$1" ] &&
-    grep -Eq '"workMode"[[:space:]]*:[[:space:]]*1([^0-9]|$)' "$1"
+    grep -Eq '"workMode"[[:space:]]*:[[:space:]]*1([^0-9]|$)' "$1" &&
+    grep -Eq '"managerUid"[[:space:]]*:[[:space:]]*[1-9][0-9]*([^0-9]|$)' "$1"
 }
 
 hma_fresh_workmode_ok() {

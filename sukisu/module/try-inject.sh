@@ -10,19 +10,20 @@ MODDIR="${0%/*}"
 [ -x "$MODDIR/bin/hma-injector" ] || { echo 'Native injector missing'; exit 1; }
 [ -f "$MODDIR/lib/libhma-payload.so" ] || { echo 'JNI payload missing'; exit 1; }
 
+BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+[ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
 LOCKDIR="$MODDIR/.inject-lock"
-if ! mkdir "$LOCKDIR" 2>/dev/null; then
-  echo 'An injection attempt is already running or was interrupted; do not retry blindly'
+if ! hma_acquire_lock "$LOCKDIR" "$BOOT_ID"; then
+  echo 'An injection attempt is already running or has an uncleared lock'
   exit 10
 fi
-trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+trap 'hma_release_lock "$LOCKDIR"' EXIT
 trap 'exit 130' INT TERM HUP
 
 PID=$(pidof system_server | awk '{print $1}')
 case "$PID" in ''|*[!0-9]*) echo 'Cannot find a valid system_server PID'; exit 1 ;; esac
-BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 START_TICKS=$(hma_process_start "$PID")
-[ -n "$BOOT_ID" ] && [ -n "$START_TICKS" ] || {
+[ -n "$START_TICKS" ] || {
   echo 'Cannot establish target process identity'
   exit 1
 }
