@@ -50,3 +50,5 @@ The native injector is additionally restricted to Android's `system_server` proc
 - Uninstall cleans its own injected-state flags and old HMA boot-script remnants. Persistent HMA settings under `/data/misc/hide_my_applist_*` and Android app data are not deleted. Other modules' files and symlinks are never removed by the migration helper.
 - If the bundled manager APK and an existing manager use different signing keys, Android will reject an in-place APK update. Back up user settings before manually replacing the manager APK. The installer never silently uninstalls an app or wipes its private data.
 - GitHub Actions runs a fixture-based legacy migration test covering active/staged old modules, orphan boot scripts, foreign module IDs, symlinks and preservation of user configuration.
+
+- The CI suite also sources the actual `customize.sh` with mocked KernelSU installer functions and runs a copied `uninstall.sh` against isolated fixture paths. It asserts successful migration without deleting user configurations.
