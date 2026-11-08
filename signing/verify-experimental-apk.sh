@@ -8,8 +8,11 @@ APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigne
 test -x "$APKSIGNER" || { echo 'Android SDK apksigner not installed' >&2; exit 1; }
 expected="$(tr -d '[:space:]:' < "$ROOT/signing/EXPERIMENTAL_CERT_SHA256.txt" | tr '[:lower:]' '[:upper:]')"
 details="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+# Build Tools can vary the prefix and whitespace in the cert output.
+# Log public certificate metadata so mismatch errors are actionable.
+printf '%s\n' "$details"
 actual="$(printf '%s\n' "$details" |
-  sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 |
+  awk 'tolower($0) ~ /certificate sha-256 digest/ { print $NF; exit }' |
   tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')"
 [[ -n "$actual" && "$actual" == "$expected" ]] || {
   echo 'APK certificate differs from the checked-in experimental test key' >&2
