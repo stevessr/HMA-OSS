@@ -20,6 +20,12 @@ hma_install_reboot_pending "$TEMP/installed_boot_id" same-kernel 123
 ! hma_install_reboot_pending "$TEMP/installed_boot_id" same-kernel 124
 [ ! -f "$TEMP/installed_boot_id" ]
 
+# The same fail-closed check works for the native failure lock marker.
+printf 'kernel-Z 555\n' > "$TEMP/injection_failed"
+hma_install_reboot_pending "$TEMP/injection_failed" kernel-Z 555
+! hma_install_reboot_pending "$TEMP/injection_failed" kernel-Z 556
+[ ! -f "$TEMP/injection_failed" ]
+
 # Old one-field markers still preserve same-boot lockouts; new boots clear.
 printf 'old-kernel\n' > "$TEMP/installed_boot_id"
 hma_install_reboot_pending "$TEMP/installed_boot_id" old-kernel 123

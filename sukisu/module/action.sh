@@ -22,14 +22,9 @@ if [ -f "$MODDIR/enabled" ]; then
   exit 0
 fi
 
-if [ -f "$MODDIR/injection_failed" ]; then
-  FAILED_BOOT=$(cat "$MODDIR/injection_failed" 2>/dev/null)
-  if [ "$FAILED_BOOT" = "$BOOT_ID" ]; then
-    echo 'This boot had a failed or interrupted injection. Reboot before retrying.'
-    exit 11
-  fi
-  # Explicit Action invocation on a new boot is the only retry mechanism.
-  rm -f "$MODDIR/injection_failed" || exit 1
+if hma_install_reboot_pending "$MODDIR/injection_failed" "$BOOT_ID" "$(hma_system_server_start)"; then
+  echo 'This system_server instance had a failed/interrupted injection; restart Android or reboot before retry.'
+  exit 11
 fi
 
 [ -x "$MODDIR/bin/hma-injector" ] || { echo 'Native backend missing'; exit 1; }

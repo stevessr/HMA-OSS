@@ -74,3 +74,5 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - Neither per-app ptrace attachment nor a separate app-process injection engine is implemented. Scoped filtering operates in the centralized PackageManager/framework service and unconfigured callers retain the original system behavior.
 
 - PMS callbacks additionally bypass package lookup work when there are no scoped application entries; when the last scope is removed, resident framework trampolines no longer apply filtering and return the original responses.
+
+- Native-injection failure lockouts are now also tied to the actual `system_server` instance, so a framework-only restart unlocks both the first-install gate and a failed prior injection without requiring a kernel reboot. An ongoing or unknown process identity remains fail-closed.
