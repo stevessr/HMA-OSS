@@ -10,7 +10,7 @@ bash "$ROOT/sukisu/tests/state-tests.sh"
 grep -qx 'id=hma_sukisu' "$ROOT/sukisu/module/module.prop"
 grep -q 'AttachCurrentThread' "$ROOT/sukisu/native/payload.cpp"
 grep -q 'PTRACE_ATTACH' "$ROOT/sukisu/native/injector.cpp"
-grep -q 'mkdir "$LOCKDIR"' "$ROOT/sukisu/module/try-inject.sh"
+grep -q 'hma_acquire_lock "$LOCKDIR"' "$ROOT/sukisu/module/try-inject.sh"
 grep -q 'hma_pid_marker_matches' "$ROOT/sukisu/module/try-inject.sh"
 ! grep -qi 'ZygoteLoader' "$ROOT/app/build.gradle.kts"
 echo 'SukiSU static checks passed'
