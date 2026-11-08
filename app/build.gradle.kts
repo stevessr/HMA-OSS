@@ -95,6 +95,8 @@ android {
         getByName("main") {
             java.srcDir("../zygote/src/main/java")
             java.srcDir("../external/AndroidVMTools/src/main/java")
+            // AGP 9 built-in Kotlin requires a separate Kotlin source directory.
+            kotlin.directories.add("../zygote/src/main/java")
         }
     }
 
