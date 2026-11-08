@@ -21,10 +21,11 @@ with zipfile.ZipFile(apk) as zf:
         raise SystemExit("APK missing AndroidManifest.xml")
     dex_names = [
         name for name in names
-        if re.fullmatch(r"classes(?:[2-9][0-9]*)?\.dex", name)
+        if re.fullmatch(r"classes(?:[0-9]+)?\.dex", name)
     ]
     if not dex_names:
         raise SystemExit("APK has no classes.dex")
+    print("APK DEX entries:", ", ".join(dex_names))
     dex = b"".join(zf.read(name) for name in dex_names)
 for descriptor in required:
     if descriptor not in dex:
