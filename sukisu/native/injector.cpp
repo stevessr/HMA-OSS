@@ -79,7 +79,7 @@ struct Trace {
         return true;
     }
     bool call(uint64_t address, std::array<uint64_t, 6> args,
-              uint64_t stack, uint64_t& result) const {
+              uint64_t stack, uint64_t& result) {
         user_pt_regs before{};
         if (!stopped || !regs(before, false)) return false;
         user_pt_regs next = before;
