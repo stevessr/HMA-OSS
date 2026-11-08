@@ -1,0 +1,6 @@
+id=hma_sukisu
+name=HMA-OSS SukiSU Native (experimental)
+version=0.1.0-alpha
+versionCode=1
+author=HMA-OSS contributors
+description=Experimental standalone SukiSU backend. Manual opt-in only; not verified on devices.

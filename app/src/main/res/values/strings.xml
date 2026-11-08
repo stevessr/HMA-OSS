@@ -240,7 +240,7 @@
 
     <!-- About -->
     <string name="about_description">
-        Although It is incorrect to detect specific app installation, yet not every app using root provides random package name support. In this case, detected apps that use root (such as Fake Location and Storage Isolation) is equal to detected root itself.\n\nAt the same time, some smart apps use various loopholes to acquire your app list, so that it can draw a persona for you.\n\nThis module provides some methods to test whether you have already hidden your applist nicely. Also, it can work as an Zygisk module to hide some apps or reject app list requests to protect your privacy.
+        Although It is incorrect to detect specific app installation, yet not every app using root provides random package name support. In this case, detected apps that use root (such as Fake Location and Storage Isolation) is equal to detected root itself.\n\nAt the same time, some smart apps use various loopholes to acquire your app list, so that it can draw a persona for you.\n\nThis module provides some methods to test whether you have already hidden your applist nicely. The experimental SukiSU backend can attempt to hide selected apps without Zygisk or Xposed; validate on your device.
     </string>
     <string name="about_fork_description">
         The original HMA project has become closed-source and their latest code didn\'t contain some of the latest changes, so I created this fork to continue it as open-source again.
@@ -253,7 +253,7 @@
         Config modification effective in real time.
     </string>
     <string name="about_how_to_use_description_3">
-        This application acts like a manager of the Zygisk module from now, so you need a separate Zygisk module to make this manager work.
+        This app is bundled with the experimental standalone SukiSU module. Install the APK from the module ZIP, then test backend activation using its Action button. No Zygisk or Xposed framework is required.
     </string>
     <string name="about_translator">Translator</string>
     <string name="about_developer">Developer</string>

@@ -121,6 +121,15 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
             appUid = findAndVerifyAppSignature(pms)
 
+            // Never install framework hooks if the manager is absent or signed
+            // by an untrusted key. Otherwise status.json could claim success
+            // without a usable and authenticated control channel.
+            if (appUid < 0) {
+                logE(TAG) { "Manager signature not verified; hooks disabled" }
+                managerWorkMode = Constants.MANAGER_WORK_MODE_NO_HOOKS
+                saveModuleStatus()
+            }
+
             if (managerWorkMode != Constants.MANAGER_WORK_MODE_NO_HOOKS) {
                 installHooks()
 
