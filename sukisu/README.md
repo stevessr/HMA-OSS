@@ -72,3 +72,5 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - App configuration changes activate hooks without repeating the native loader or restarting the system. Removing a scope immediately disables that app's filtering behavior via existing caller checks; hooks cannot be safely hot-uninstalled from `system_server` after activation and remain resident until reboot.
 - Installation stores both the kernel boot ID and `system_server` start ticks. A full reboot or Android framework-only restart unlocks the installer gate; older single-field markers are supported. A previous-boot `injection_failed` marker no longer disables autostart forever.
 - Neither per-app ptrace attachment nor a separate app-process injection engine is implemented. Scoped filtering operates in the centralized PackageManager/framework service and unconfigured callers retain the original system behavior.
+
+- PMS callbacks additionally bypass package lookup work when there are no scoped application entries; when the last scope is removed, resident framework trampolines no longer apply filtering and return the original responses.

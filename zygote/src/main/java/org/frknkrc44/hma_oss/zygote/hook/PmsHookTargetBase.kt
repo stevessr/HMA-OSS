@@ -22,6 +22,10 @@ abstract class PmsHookTargetBase : IFrameworkHook {
         valueForHiding: Any?,
     ) {
         if (returnValue.throwable != null) return
+        // Once the last scoped app is removed, installed ART trampolines may
+        // still exist until reboot. Skip unscoped lookups before resolving UID
+        // and package details, without modifying unconfigured app behavior.
+        if (service.config.scope.isEmpty()) return
 
         val callingUid = findCallingUid()
         if (callingUid == null || callingUid == Constants.UID_SYSTEM) return
