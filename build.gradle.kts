@@ -149,11 +149,24 @@ fun Project.configureBaseExtension() {
 
         val providedSigningConfig = createProvidedSigningConfig(this)
 
+        // Checked-in PUBLIC TEST certificate: reproducible across local debug
+        // builds and all CI runs. Never use this publicly readable private key
+        // to sign a trusted release; release requires an explicitly supplied
+        // private signing configuration in local.properties.
+        val experimentalSigningConfig = signingConfigs.create("experimentalPublicDebug").apply {
+            storeFile = rootProject.file("signing/hma-oss-experimental.p12")
+            storeType = "pkcs12"
+            storePassword = "hma-experimental-public"
+            keyAlias = "hma-experimental"
+            keyPassword = "hma-experimental-public"
+        }
+
         buildTypes {
-            all {
-                signingConfig = providedSigningConfig ?: signingConfigs.getByName("debug")
+            named("debug") {
+                signingConfig = providedSigningConfig ?: experimentalSigningConfig
             }
             named("release") {
+                signingConfig = providedSigningConfig
                 isMinifyEnabled = true
                 isShrinkResources = true
                 proguardFiles(
@@ -183,6 +196,7 @@ fun Project.configureBaseExtension() {
 
         buildTypes {
             all {
+                // Libraries are not distributed as signed installable APKs.
                 signingConfig = providedSigningConfig ?: signingConfigs.getByName("debug")
             }
             named("release") {
