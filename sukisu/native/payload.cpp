@@ -38,7 +38,7 @@ void* startJava(void* arg) {
         return nullptr;
     }
     JNIEnv* env = nullptr;
-    if (vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
+    if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
         log("AttachCurrentThread failed");
         return nullptr;
     }
