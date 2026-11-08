@@ -80,7 +80,9 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
     val hooker = BulkHooker()
     val dataHolder = HMAServiceDataHolder()
     private val lazyHookLock = Any()
-    @Volatile private var frameworkHooksInstalled = false
+    // Each group is attached at most once. Do not install a broad hook surface
+    // merely because one configured caller needs basic PackageManager hiding.
+    private val installedHookGroups = mutableSetOf<String>()
 
     private var managerWorkMode: Int = Constants.MANAGER_WORK_MODE_UNKNOWN
 
@@ -319,56 +321,87 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
         ) return
 
         synchronized(lazyHookLock) {
-            if (frameworkHooksInstalled || hooker.hooksWasCrashed) return
-            installHooks()
-            if (hooker.hooksWasCrashed) {
-                managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
-                saveModuleStatus()
-            } else {
-                frameworkHooksInstalled = true
-                logI(TAG) { "Lazy hooks activated for configured app scopes" }
+            if (hooker.hooksWasCrashed) return
+            // An explicit default applies to future packages; do not silently
+            // enable it otherwise. All policy tests are repeated when config
+            // changes; only newly needed hook groups are attached.
+            val scoped = config.scope.values.toList() +
+                listOfNotNull(config.defaultConfig)
+
+            fun installOnce(group: String, makeHook: () -> IFrameworkHook) {
+                if (group in installedHookGroups || hooker.hooksWasCrashed) return
+                val hook = makeHook()
+                hook.load()
+                if (hooker.hooksWasCrashed) {
+                    managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
+                    saveModuleStatus()
+                    return
+                }
+                installedHookGroups.add(group)
+                frameworkHooks.add(hook)
+                logI(TAG) { "Lazy hook group enabled: $group" }
             }
+
+            // Smallest useful HMA surface: package visibility (PMS).
+            // Optional groups below stay entirely unhooked unless a scoped
+            // application has enabled the corresponding behavior.
+            pms.allPackages.filterTo(systemApps) {
+                pms.getPackageInfoCompat(
+                    it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
+            }
+            installOnce("package-manager") {
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> PmsHookTarget34()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> PmsHookTarget33()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> PmsHookTarget31()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> PmsHookTarget30()
+                    else -> PmsHookTarget29()
+                }
+            }
+
+            if (scoped.any { it.hideInstallationSource }) {
+                installOnce("installer") {
+                    when {
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> InstallerHookTarget34()
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> InstallerHookTarget33()
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> InstallerHookTarget30()
+                        else -> InstallerHookTarget29()
+                    }
+                }
+            }
+            if (config.altAppDataIsolation || config.altVoldAppDataIsolation) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    installOnce("app-data-isolation") { AppDataIsolationHook() }
+                }
+            }
+
+            // Activity/broadcast interception is the riskiest globally observed
+            // surface, so do not install it when the user disabled protection.
+            if (!config.disableActivityLaunchProtection) {
+                installOnce("activity") { ActivityHook() }
+                installOnce("broadcast") { BroadcastHook() }
+            }
+            if (config.defaultConfig != null || scoped.any { it.applyPresets.isNotEmpty() }) {
+                installOnce("package-events") { PmsPackageEventsHook() }
+            }
+            if (scoped.any { it.applySettingsPresets.isNotEmpty() ||
+                    it.applySettingTemplates.isNotEmpty() }) {
+                installOnce("content-provider-settings") { ContentProviderHook() }
+            }
+            if (scoped.any { it.applySettingsPresets.contains("accessibility") }) {
+                installOnce("accessibility") { AccessibilityHook() }
+            }
+            if (scoped.any { it.applySettingsPresets.contains("input_method") }) {
+                installOnce("input-method") { ImmHook() }
+            }
+            if (config.forceMountData ||
+                scoped.any { it.restrictedZygotePermissions.isNotEmpty() }) {
+                installOnce("zygote-process-policy") { ZygoteHook() }
+            }
+            // UsageStats queries are only read when scoped package visibility
+            // is active, not at service bootstrap.
+            installOnce("usage-stats") { UsageStatsHook() }
         }
-    }
-
-    private fun installHooks() {
-        pms.allPackages.filterTo(systemApps) {
-            pms.getPackageInfoCompat(
-                it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            frameworkHooks.add(PmsHookTarget34())
-            frameworkHooks.add(InstallerHookTarget34())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            frameworkHooks.add(PmsHookTarget33())
-            frameworkHooks.add(InstallerHookTarget33())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            frameworkHooks.add(PmsHookTarget31())
-            frameworkHooks.add(InstallerHookTarget30())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            frameworkHooks.add(PmsHookTarget30())
-            frameworkHooks.add(InstallerHookTarget30())
-        } else {
-            frameworkHooks.add(PmsHookTarget29())
-            frameworkHooks.add(InstallerHookTarget29())
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            frameworkHooks.add(AppDataIsolationHook())
-        }
-
-        frameworkHooks.add(ActivityHook())
-        frameworkHooks.add(BroadcastHook())
-        frameworkHooks.add(PmsPackageEventsHook())
-        frameworkHooks.add(AccessibilityHook())
-        frameworkHooks.add(ContentProviderHook())
-        frameworkHooks.add(ImmHook())
-        frameworkHooks.add(ZygoteHook())
-        frameworkHooks.add(UsageStatsHook())
-
-        frameworkHooks.forEach(IFrameworkHook::load)
-        logI(TAG) { "Hooks installed" }
     }
 
     fun increasePMFilterCount(callingUid: Int?, amount: Int = 1) = dataHolder.increaseFilterCount(

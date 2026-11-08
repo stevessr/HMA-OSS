@@ -76,3 +76,5 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - PMS callbacks additionally bypass package lookup work when there are no scoped application entries; when the last scope is removed, resident framework trampolines no longer apply filtering and return the original responses.
 
 - Native-injection failure lockouts are now also tied to the actual `system_server` instance, so a framework-only restart unlocks both the first-install gate and a failed prior injection without requiring a kernel reboot. An ongoing or unknown process identity remains fail-closed.
+
+- The native backend keeps all graphics/media processes untouched. Rather than installing all system_server hooks when any app is configured, it incrementally enables only required hook groups, with package visibility as the default and installation source, app-data isolation, settings provider, accessibility, input methods, and broadcast protection gated by configuration. This reduces unrelated callbacks during media playback but cannot guarantee the absence of display glitches without device tests.

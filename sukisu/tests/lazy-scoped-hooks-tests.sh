@@ -6,8 +6,11 @@ ENTRY="$ROOT/zygote/src/main/java/org/frknkrc44/hma_oss/zygote/SukiStandaloneEnt
 # Structural regression gates; the Android SDK build validates Kotlin syntax.
 grep -Fq 'private fun installHooksWhenConfigured()' "$SERVICE"
 grep -Fq '(config.scope.isEmpty() && config.defaultConfig == null)' "$SERVICE"
-grep -Fq 'private var frameworkHooksInstalled = false' "$SERVICE"
+grep -Fq 'private val installedHookGroups = mutableSetOf<String>()' "$SERVICE"
 grep -Fq 'synchronized(lazyHookLock)' "$SERVICE"
+grep -Fq 'installOnce("package-manager")' "$SERVICE"
+grep -Fq 'installOnce("broadcast")' "$SERVICE"
+grep -Fq 'if (!config.disableActivityLaunchProtection)' "$SERVICE"
 grep -Fq 'installHooksWhenConfigured()' "$SERVICE"
 grep -Fq 'if (appUid <= 0' "$SERVICE"
 grep -Fq 'SukiStandaloneEntry' "$ENTRY"
