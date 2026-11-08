@@ -52,3 +52,15 @@ The native injector is additionally restricted to Android's `system_server` proc
 - GitHub Actions runs a fixture-based legacy migration test covering active/staged old modules, orphan boot scripts, foreign module IDs, symlinks and preservation of user configuration.
 
 - The CI suite also sources the actual `customize.sh` with mocked KernelSU installer functions and runs a copied `uninstall.sh` against isolated fixture paths. It asserts successful migration without deleting user configurations.
+
+## Stable experimental signing certificate
+
+Every CI and normal local `assembleDebug` now uses the same **checked-in public test key** at `signing/hma-oss-experimental.p12`, instead of the runner-specific Android debug keystore. Both the `Main` APK and the `SukiSU` ZIP's `manager.apk` therefore carry the same certificate. The embedded `Magic.java` signature verifier is generated from that configured signing key. CI verifies its SHA-256 fingerprint after packaging.
+
+The pinned experimental certificate SHA-256 fingerprint is:
+
+`BB:E9:D7:63:B8:14:2B:D8:67:6C:73:AF:9E:D7:AC:20:41:DB:1C:D7:06:CE:97:BE:52:99:EB:56:9B:8F:73:0E`
+
+**This test private key is publicly downloadable and cannot authenticate official releases.** To produce a trusted release, supply a separate private keystore via local `local.properties` (`fileDir`, `storePassword`, `keyAlias`, `keyPassword`). An unsigned release remains unsigned without that configuration.
+
+**One-time certificate migration:** Android will still reject updating an already-installed APK signed by an older random debug/official certificate. The module installer never silently deletes app data. Back up the manager's app-specific settings (and HMA configurations if desired), uninstall the old manager APK, then install the new signed manager. All future experimental updates signed with this pinned public test key will install over one another.

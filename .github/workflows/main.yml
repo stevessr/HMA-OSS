@@ -18,15 +18,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Prepare environment
+      - name: Prepare stable public test signing
         run: |
           touch local.properties
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          bash signing/verify-experimental-keystore.sh
       - name: Build the standalone manager APK
         run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Verify APK uses pinned experimental certificate
+        run: |
+          apk="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          bash signing/verify-experimental-apk.sh "$apk"
       - name: Upload APK for development
         uses: actions/upload-artifact@v7
         with:
