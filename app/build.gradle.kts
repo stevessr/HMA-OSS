@@ -1,8 +1,10 @@
+import com.android.ide.common.signing.KeystoreHelper
 import com.google.gson.JsonParser
 import org.jose4j.json.internal.json_simple.JSONObject
 import java.io.DataInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 plugins {
     alias(libs.plugins.agp.app)
@@ -88,6 +90,14 @@ android {
         viewBinding = true
     }
 
+    // Reuse the original framework-hook service in the SukiSU manager APK.
+    sourceSets {
+        getByName("main") {
+            java.srcDir("../zygote/src/main/java")
+            java.srcDir("../external/AndroidVMTools/src/main/java")
+        }
+    }
+
     packaging {
         dex.useLegacyPackaging = true
         resources {
@@ -141,6 +151,14 @@ fun generateSupportedLocales(): String {
 
 dependencies {
     implementation(projects.common)
+    compileOnly(projects.stub)
+
+    implementation(libs.androidx.annotation.jvm)
+    implementation(libs.io.github.vova7878.r8annotations)
+    implementation(androidvmtools.panama.core)
+    implementation(androidvmtools.panama.unsafe)
+    implementation(androidvmtools.panama.llvm)
+    implementation(androidvmtools.sun.cleaner)
 
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
@@ -153,4 +171,61 @@ dependencies {
 
     implementation(libs.androidx.appcompat.appcompat)
     implementation(libs.material)
+}
+
+/**
+ * Embed the currently configured manager APK certificate, because HMAService
+ * verifies the manager signature before exchanging its privileged Binder.
+ */
+abstract class GenerateSignInfoTask : DefaultTask() {
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+    @get:Input
+    @get:Optional
+    abstract val storeType: Property<String>
+    @get:InputFile
+    @get:Optional
+    abstract val storeFile: RegularFileProperty
+    @get:Input
+    @get:Optional
+    abstract val keyAlias: Property<String>
+    @get:Internal
+    abstract val storePassword: Property<String>
+    @get:Internal
+    abstract val keyPassword: Property<String>
+    @TaskAction
+    fun generate() {
+        val certificateInfo = KeystoreHelper.getCertificateInfo(
+            storeType.orNull, storeFile.asFile.orNull,
+            storePassword.orNull, keyPassword.orNull, keyAlias.orNull,
+        )
+        val target = outputDir.get().file("org/frknkrc44/hma_oss/zygote/Magic.java").asFile
+        target.parentFile.mkdirs()
+        target.writeText(buildString {
+            appendLine("package org.frknkrc44.hma_oss.zygote;")
+            appendLine("public final class Magic {")
+            appendLine("public static final byte[] magicNumbers = {")
+            appendLine(certificateInfo.certificate.encoded.joinToString(",") { it.toString() })
+            appendLine("};")
+            appendLine("}")
+        })
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val signing = android.buildTypes[variant.name.lowercase(Locale.ROOT)].signingConfig
+        val generator = tasks.register<GenerateSignInfoTask>(
+            "generate${variant.name.replaceFirstChar { it.titlecase(Locale.ROOT) }}SignInfo"
+        ) {
+            storeType.set(signing?.storeType)
+            storeFile.set(signing?.storeFile)
+            storePassword.set(signing?.storePassword)
+            keyAlias.set(signing?.keyAlias)
+            keyPassword.set(signing?.keyPassword)
+        }
+        variant.sources.java?.addGeneratedSourceDirectory(
+            generator, GenerateSignInfoTask::outputDir
+        )
+    }
 }

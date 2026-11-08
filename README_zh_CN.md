@@ -42,3 +42,14 @@
 
 ## 更新日志
 [参考发布页面](https://github.com/frknkrc44/HMA-OSS/commits)  
+
+## SukiSU Ultra 独立后端（实验中）
+
+开发分支：`feat/sukisu-native-backend`。
+
+目标是 SukiSU/KernelSU 可安装模块 ZIP，内置原生注入程序和管理 APK，
+不依赖 Zygisk、Riru、LSPosed、Xposed 或其他第三方 Hook 框架。
+本分支不再构建旧的 `:zygote` Zygisk ZIP。
+
+详见 [SukiSU 移植设计与当前验证状态](sukisu/README.md)。
+当前仍为未经真机验证的实验性实现，不能作为稳定版本发布。

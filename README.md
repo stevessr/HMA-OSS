@@ -52,3 +52,15 @@ You can contribute translation [here](https://crowdin.com/project/frknkrc44-hma-
 
 ## Update log
 [Reference to the commits page](https://github.com/frknkrc44/HMA-OSS/commits)
+
+## Standalone SukiSU Ultra port (experimental)
+
+Development branch: `feat/sukisu-native-backend`.
+
+The target is a SukiSU/KernelSU module ZIP with a bundled native injector and
+manager APK. It deliberately does **not** depend on Zygisk, Riru, LSPosed,
+Xposed or any third-party hooking framework. The original `:zygote` Zygisk
+packaging is excluded from this branch's Gradle build.
+
+See [SukiSU port design and safety status](sukisu/README.md). This is an
+experimental unverified port: it is not ready for a production release.

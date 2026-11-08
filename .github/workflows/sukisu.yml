@@ -1,0 +1,67 @@
+name: SukiSU standalone experimental build
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build SukiSU APK + native backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: gradle/actions/wrapper-validation@v6
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Prepare Android debug signing
+        run: |
+          touch local.properties
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build manager APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Install pinned Android NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018"
+
+      - name: Build native injector and payload
+        run: |
+          cmake -S sukisu/native -B sukisu/native/build \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build sukisu/native/build --parallel 2
+
+      - name: Validate shell scripts and standalone entry
+        run: |
+          bash sukisu/tests/static-checks.sh
+          test -s sukisu/native/build/hma-injector
+          test -s sukisu/native/build/libhma-payload.so
+
+      - name: Package installable experimental module
+        run: |
+          apk="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          bash sukisu/package.sh "$apk" sukisu/native/build sukisu/build/HMA-OSS-SukiSU-experimental.zip
+          unzip -l sukisu/build/HMA-OSS-SukiSU-experimental.zip | tee sukisu/build/package-manifest.txt
+          for entry in manager.apk bin/hma-injector lib/libhma-payload.so module.prop action.sh service.sh customize.sh; do
+            unzip -Z1 sukisu/build/HMA-OSS-SukiSU-experimental.zip | grep -qx "$entry"
+          done
+
+      - name: Upload experimental test build (not a release)
+        uses: actions/upload-artifact@v7
+        with:
+          name: HMA-OSS-SukiSU-experimental
+          path: sukisu/build/HMA-OSS-SukiSU-experimental.zip
