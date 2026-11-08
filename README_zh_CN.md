@@ -52,6 +52,6 @@
 
 已经移除了原先的 Magisk/Zygisk 模块 ZIP 构建、ZygoteLoader Gradle 插件和 Zygisk 安装检查脚本。现在运行 `./gradlew :app:assembleDebug` 或 `./gradlew :app:assembleRelease` 生成 APK 即可。
 
-**迁移注意：**先停用并卸载旧版 `hma_oss_zygisk` 模块，避免两个后端同时 Hook `system_server`。更换框架前建议备份配置。
+**迁移注意：**先停用并卸载旧版 `hma_oss_zygisk` 模块，避免两个后端同时 Hook `system_server`。更换框架前建议备份配置。若旧管理 APK 与本次构建签名不同，Android 无法直接覆盖安装，需要先卸载旧 APK，再安装新版。
 
 **兼容性：**底层 ART Hook 仍由 AndroidVMTools 实现，兼容范围取决于 Android 版本、SELinux 策略和所选 Xposed 框架是否支持注入系统服务。此修改不会让所有 Android 版本自动获得兼容性。

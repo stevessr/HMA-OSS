@@ -62,6 +62,6 @@ You can contribute translation [here](https://crowdin.com/project/frknkrc44-hma-
 
 The old Magisk/Zygisk module ZIP, ZygoteLoader Gradle plugin and Zygisk installation scripts were removed from the build. Compile the APK using `./gradlew :app:assembleDebug` or `./gradlew :app:assembleRelease`.
 
-**Migration:** Disable and remove the old `hma_oss_zygisk` module before enabling the Xposed-based APK to avoid hooking `system_server` twice. Keep a config backup before changing frameworks.
+**Migration:** Disable and remove the old `hma_oss_zygisk` module before enabling the Xposed-based APK to avoid hooking `system_server` twice. Keep a config backup before changing frameworks. If your previous manager APK used a different signing certificate, uninstall it before installing the new build; Android will not accept an in-place update signed with a different key.
 
 **Limitations:** The in-process ART hooks still use AndroidVMTools and depend on Android version, SELinux policy, and the framework's system-server injection support. Android versions beyond those supported by your chosen Xposed implementation are not automatically covered by this conversion.

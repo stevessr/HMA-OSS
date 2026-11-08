@@ -20,7 +20,7 @@ fun String.execute(currentWorkingDir: File = file("./")): String {
 }
 
 val localProperties = Properties()
-file("local.properties").takeIf { it.isFile }?.inputStream()?.use(localProperties::load)
+file("local.properties").takeIf { it.isFile }?.inputStream()?.use { localProperties.load(it) }
 val ciBuild = providers.environmentVariable("CI").isPresent
 val officialBuild = localProperties.getProperty("officialBuild", "false") == "true"
 extra["officialBuild"] = officialBuild

@@ -50,6 +50,9 @@ jobs:
           grep -q 'xposedscope' app/src/main/AndroidManifest.xml
           grep -qx 'org.frknkrc44.hma_oss.zygote.ZygoteEntry' app/src/main/assets/xposed_init
           ! grep -qi 'ZygoteLoader' app/build.gradle.kts
+          apk="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          unzip -p "$apk" assets/xposed_init | grep -qx 'org.frknkrc44.hma_oss.zygote.ZygoteEntry'
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7

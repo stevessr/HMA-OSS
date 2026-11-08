@@ -15,6 +15,7 @@ import org.frknkrc44.hma_oss.common.BuildConfig;
 import org.frknkrc44.hma_oss.zygote.service.SystemServerHook;
 
 import java.util.Locale;
+import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -38,13 +39,7 @@ public final class ZygoteEntry implements IXposedHookLoadPackage {
         }
 
         try {
-            ClassLoader loader = lpparam.classLoader;
-            if (loader == null) {
-                loader = Class.forName("com.android.server.SystemServer").getClassLoader();
-            }
-            if (loader == null) {
-                throw new IllegalStateException("Cannot resolve system_server class loader");
-            }
+            ClassLoader loader = resolveSystemServerClassLoader(lpparam);
 
             int sdkLevel = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
                     ? Build.VERSION.SDK_INT_FULL : Build.VERSION.SDK_INT;
@@ -56,6 +51,37 @@ public final class ZygoteEntry implements IXposedHookLoadPackage {
             STARTED.set(false);
             logELegacy(TAG, "Could not initialize system_server hooks", error);
         }
+    }
+
+    /**
+     * Resolve services.jar in system_server rather than assuming the legacy
+     * Xposed callback's class loader can see framework service classes.
+     */
+    private static ClassLoader resolveSystemServerClassLoader(
+            XC_LoadPackage.LoadPackageParam param) throws Exception {
+        ClassLoader loader = param.classLoader;
+        try {
+            Class<?> systemServer = Class.forName("com.android.server.SystemServer", false, loader);
+            if (systemServer.getClassLoader() != null) {
+                return systemServer.getClassLoader();
+            }
+        } catch (ClassNotFoundException ignored) {
+            // Android 12+ may use a separate system_server services.jar loader.
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Class<?> zygoteInit = Class.forName("com.android.internal.os.ZygoteInit");
+            Method method = zygoteInit.getDeclaredMethod("getOrCreateSystemServerClassLoader");
+            method.setAccessible(true);
+            Object found = method.invoke(null);
+            if (found instanceof ClassLoader) {
+                return (ClassLoader) found;
+            }
+        }
+        if (loader == null) {
+            throw new ClassNotFoundException("system_server class loader unavailable");
+        }
+        return loader;
     }
 
     private static boolean isSystemServer(XC_LoadPackage.LoadPackageParam param) {
