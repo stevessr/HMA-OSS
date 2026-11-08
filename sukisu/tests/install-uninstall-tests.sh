@@ -43,6 +43,7 @@ KSU=true MODPATH="$MOD" sh "$TMP/install-runner.sh" "$MOD/customize-test.sh"
 
 # The actual uninstaller must clean its own markers and a future stale hook,
 # while leaving the HMA configuration and unrelated root scripts untouched.
+mkdir -p "$ADB/boot-completed.d"
 printf 'MODDIR=/data/adb/modules/hma_oss_zygisk\ncp "$MODDIR/module.prop.bak" "$MODDIR/module.prop"\n' > "$ADB/boot-completed.d/hmaoss.sh"
 mkdir -p "$ADB/post-fs-data.d"
 printf '# foreign owner\n' > "$ADB/post-fs-data.d/hmaoss.sh"
