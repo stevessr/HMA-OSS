@@ -11,7 +11,7 @@ hma_pid_marker_matches() {
   IFS=' ' read -r local_boot local_pid local_start < "$1" || return 1
   [ -n "$local_boot" ] && [ -n "$local_start" ] &&
     [ "$local_boot" = "$2" ] && [ "$local_pid" = "$3" ] &&
-    [ "$local_start" = "$4"
+    [ "$local_start" = "$4" ]
 }
 
 # Atomically lock operations. A lock abandoned on a previous boot is safe to
