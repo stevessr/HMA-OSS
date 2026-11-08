@@ -2,7 +2,7 @@ name: SukiSU standalone experimental build
 
 on:
   push:
-    branches: [master, feat/sukisu-native-backend]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
