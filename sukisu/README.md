@@ -32,3 +32,7 @@ Build the APK with `./gradlew :app:assembleDebug`. Use Android NDK r27+ and CMak
 - Only one injector can run at once. A verified injection is tagged with boot ID, system_server PID and process start ticks; duplicate loading into the same process is refused. A crashed injector's lock is only reclaimed on a later boot.
 - A previously failed native attempt cannot be retried in the same boot. The manager must be installed and have the **same signing certificate as the APK bundled in the module**. An older manager signed with a different certificate cannot be updated in place; back up its configuration before changing signatures.
 - CI validates the APK and arm64 binaries, package layout, shell syntax and process-state unit tests. The kernel's SELinux policy may still prohibit ptrace/dlopen; this module does not relax it.
+
+## Package compatibility
+
+The module targets **arm64-v8a Android API 29+** and requires a SukiSU/KernelSU-compatible module manager. `customize.sh` rejects unsupported ABI/API levels. The ZIP uses `skip_mount`: no system partition overlay or metamodule is required merely to run its scripts. Packaging validates the APK archive and both native ELF architectures before producing the ZIP.

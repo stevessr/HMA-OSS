@@ -7,6 +7,25 @@ OUT="${3:-$ROOT/sukisu/build/HMA-OSS-SukiSU-experimental.zip}"
 [[ -f "$APK" ]] || { echo "Missing APK: $APK" >&2; exit 1; }
 [[ -f "$NATIVE/hma-injector" ]] || { echo 'Missing native injector' >&2; exit 1; }
 [[ -f "$NATIVE/libhma-payload.so" ]] || { echo 'Missing native payload' >&2; exit 1; }
+# Do not turn an unrelated archive or wrong-architecture executable into a
+# privileged root module, even when package.sh is called outside Actions.
+unzip -tqq "$APK" >/dev/null || { echo 'APK is not a valid ZIP' >&2; exit 1; }
+for required in AndroidManifest.xml classes.dex; do
+  unzip -Z1 "$APK" | grep -Fx "$required" >/dev/null ||
+    { echo "APK missing $required" >&2; exit 1; }
+done
+if command -v llvm-readelf >/dev/null 2>&1; then
+  ELF_TOOL=llvm-readelf
+elif command -v readelf >/dev/null 2>&1; then
+  ELF_TOOL=readelf
+else
+  echo 'Packaging requires readelf or llvm-readelf for ABI verification' >&2
+  exit 1
+fi
+for binary in "$NATIVE/hma-injector" "$NATIVE/libhma-payload.so"; do
+  "$ELF_TOOL" -h "$binary" | grep -F 'AArch64' >/dev/null ||
+    { echo "Expected arm64 ELF binary: $binary" >&2; exit 1; }
+done
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp "$ROOT/sukisu/module/"* "$STAGE/"
