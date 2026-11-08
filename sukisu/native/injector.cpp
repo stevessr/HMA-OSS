@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
+#include <sys/stat.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -160,6 +161,32 @@ uint64_t remoteSymbol(pid_t pid, const char* symbol) {
                      reinterpret_cast<uintptr_t>(info.dli_fbase));
 }
 
+// Fail closed when invoked directly with an unrelated privileged process.
+// system_server is conventionally uid 1000; never accept another UID.
+bool isExpectedTarget(pid_t pid) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    FILE* fp = fopen(path, "rb");
+    if (!fp) {
+        perror("Cannot open target cmdline");
+        return false;
+    }
+    char name[128] = {};
+    size_t length = fread(name, 1, sizeof(name) - 1, fp);
+    fclose(fp);
+    if (!length || strcmp(name, "system_server") != 0) {
+        fprintf(stderr, "Refusing to inject into a process other than system_server\n");
+        return false;
+    }
+    snprintf(path, sizeof(path), "/proc/%d", pid);
+    struct stat info{};
+    if (stat(path, &info) != 0 || info.st_uid != 1000) {
+        fprintf(stderr, "Refusing to inject into a process not owned by Android system UID\n");
+        return false;
+    }
+    return true;
+}
+
 bool loadPayload(const char* file, std::vector<uint8_t>& data) {
     FILE* fp = fopen(file, "rb");
     if (!fp) { perror(file); return false; }
@@ -189,6 +216,9 @@ int main(int argc, char** argv) {
         return 2;
     }
     auto pid = static_cast<pid_t>(parsed);
+    // The path is subsequently copied into an in-process staging mmap.
+    // Bound it *before* writing to system_server's memory.
+    if (strlen(argv[3]) > 4096 || !isExpectedTarget(pid)) return 2;
     std::vector<uint8_t> data;
     if (!loadPayload(argv[2], data)) return 3;
     for (const char* name : {"mmap", "memfd_create", "write", "dlopen",

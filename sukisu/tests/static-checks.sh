@@ -6,7 +6,9 @@ for file in "$ROOT"/sukisu/module/*.sh; do
 done
 bash -n "$ROOT/sukisu/package.sh"
 bash -n "$ROOT/sukisu/tests/state-tests.sh"
+bash -n "$ROOT/sukisu/tests/action-tests.sh"
 bash "$ROOT/sukisu/tests/state-tests.sh"
+bash "$ROOT/sukisu/tests/action-tests.sh"
 grep -qx 'id=hma_sukisu' "$ROOT/sukisu/module/module.prop"
 grep -q 'AttachCurrentThread' "$ROOT/sukisu/native/payload.cpp"
 grep -q 'PTRACE_ATTACH' "$ROOT/sukisu/native/injector.cpp"

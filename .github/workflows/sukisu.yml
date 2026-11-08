@@ -2,7 +2,7 @@ name: SukiSU standalone experimental build
 
 on:
   push:
-    branches: [feat/sukisu-native-backend]
+    branches: [master, feat/sukisu-native-backend]
   pull_request:
   workflow_dispatch:
 
@@ -60,6 +60,7 @@ jobs:
         run: |
           apk="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$apk"
+          python3 sukisu/tests/verify-apk.py "$apk"
           bash sukisu/package.sh "$apk" sukisu/native/build sukisu/build/HMA-OSS-SukiSU-experimental.zip
           unzip -l sukisu/build/HMA-OSS-SukiSU-experimental.zip | tee sukisu/build/package-manifest.txt
           unzip -tqq sukisu/build/HMA-OSS-SukiSU-experimental.zip

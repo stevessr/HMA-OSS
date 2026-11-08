@@ -36,3 +36,9 @@ Build the APK with `./gradlew :app:assembleDebug`. Use Android NDK r27+ and CMak
 ## Package compatibility
 
 The module targets **arm64-v8a Android API 29+** and requires a SukiSU/KernelSU-compatible module manager. `customize.sh` rejects unsupported ABI/API levels. The ZIP uses `skip_mount`: no system partition overlay or metamodule is required merely to run its scripts. Packaging validates the APK archive and both native ELF architectures before producing the ZIP.
+
+## CI regression gates
+
+The GitHub Actions workflow builds on feature-branch pushes, pull requests and `master` pushes. Host-side regression coverage includes module Action enable/disable, failed-attempt lockout, lock conflicts, boot-scoped lock reclamation, shell-state parsing, APK DEX-class presence, ELF architecture, and final ZIP integrity. This is *not* a substitute for on-device system_server behavior or SELinux testing.
+
+The native injector is additionally restricted to Android's `system_server` process (UID 1000) and rejects oversize APK paths before copying data into a remote memory mapping.
