@@ -32,6 +32,8 @@ struct Trace {
     pid_t pid;
     user_pt_regs saved{};
     bool attached = false;
+    bool stopped = false;
+    bool savedValid = false;
 
     explicit Trace(pid_t target) : pid(target) {}
     bool attach() {
@@ -41,8 +43,15 @@ struct Trace {
         }
         attached = true;
         int status = 0;
-        if (waitpid(pid, &status, __WALL) != pid || !WIFSTOPPED(status)) return false;
-        return regs(saved, false);
+        pid_t got;
+        do {
+            got = waitpid(pid, &status, __WALL);
+        } while (got == -1 && errno == EINTR);
+        if (got != pid || !WIFSTOPPED(status)) return false;
+        stopped = true;
+        if (!regs(saved, false)) return false;
+        savedValid = true;
+        return true;
     }
     bool regs(user_pt_regs& value, bool set) const {
         struct iovec io{&value, sizeof(value)};
@@ -72,7 +81,7 @@ struct Trace {
     bool call(uint64_t address, std::array<uint64_t, 6> args,
               uint64_t stack, uint64_t& result) const {
         user_pt_regs before{};
-        if (!regs(before, false)) return false;
+        if (!stopped || !regs(before, false)) return false;
         user_pt_regs next = before;
         for (size_t i = 0; i < args.size(); i++) next.regs[i] = args[i];
         next.pc = address;
@@ -81,23 +90,35 @@ struct Trace {
         if (!regs(next, true)) return false;
         bool ok = false;
         if (ptrace(PTRACE_CONT, pid, nullptr, nullptr) == 0) {
+            stopped = false;
             int status = 0;
-            if (waitpid(pid, &status, __WALL) == pid && WIFSTOPPED(status)
-                    && WSTOPSIG(status) == SIGSEGV) {
-                user_pt_regs after{};
-                if (regs(after, false) && after.pc < 0x1000) {
-                    result = after.regs[0];
-                    ok = true;
+            pid_t got;
+            do {
+                got = waitpid(pid, &status, __WALL);
+            } while (got == -1 && errno == EINTR);
+            if (got == pid && WIFSTOPPED(status)) {
+                stopped = true;
+                if (WSTOPSIG(status) == SIGSEGV) {
+                    user_pt_regs after{};
+                    if (regs(after, false) && after.pc < 0x1000) {
+                        result = after.regs[0];
+                        ok = true;
+                    }
                 }
             }
         }
-        if (!regs(before, true)) return false;
+        // Never overwrite a running tracee's registers. The destructor must
+        // also avoid writing a zero-initialized snapshot after attach failure.
+        if (!stopped || !regs(before, true)) return false;
         return ok;
     }
     ~Trace() {
-        if (attached) {
-            regs(saved, true);
-            ptrace(PTRACE_DETACH, pid, nullptr, nullptr);
+        if (!attached) return;
+        if (savedValid && stopped && !regs(saved, true)) {
+            fprintf(stderr, "Could not restore original system_server registers\n");
+        }
+        if (ptrace(PTRACE_DETACH, pid, nullptr, nullptr) != 0) {
+            perror("PTRACE_DETACH");
         }
     }
 };
