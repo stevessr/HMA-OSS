@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.agp.app) apply false
     alias(libs.plugins.agp.lib) apply false
     alias(libs.plugins.nav.safeargs.kotlin) apply false
-    alias(libs.plugins.com.github.aerathstuff.zygoteloader) apply false
 }
 
 fun String.execute(currentWorkingDir: File = file("./")): String {
@@ -21,7 +20,7 @@ fun String.execute(currentWorkingDir: File = file("./")): String {
 }
 
 val localProperties = Properties()
-localProperties.load(file("local.properties").inputStream())
+file("local.properties").takeIf { it.isFile }?.inputStream()?.use(localProperties::load)
 val ciBuild = providers.environmentVariable("CI").isPresent
 val officialBuild = localProperties.getProperty("officialBuild", "false") == "true"
 extra["officialBuild"] = officialBuild

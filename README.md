@@ -41,7 +41,7 @@ Although it's bad practice to detect the installation of specific apps, not ever
 
 Additionally, some apps use various loopholes to acquire your app list, in order to use it as fingerprinting data or for other nefarious purposes.
 
-This module can work as an Zygisk module to hide apps or reject app list requests.
+The APK now acts as an Xposed-compatible module. Its manager and system-server hook backend are packaged together, with **no Zygisk dependency**.
 
 ## About HMA-OSS
 
@@ -52,3 +52,16 @@ You can contribute translation [here](https://crowdin.com/project/frknkrc44-hma-
 
 ## Update log
 [Reference to the commits page](https://github.com/frknkrc44/HMA-OSS/commits)
+
+## Installation (non-Zygisk)
+
+1. Install the HMA-OSS APK built from this branch; it includes both the settings UI and the framework hook code.
+2. In an **Xposed-compatible hooking framework**, enable HMA-OSS and set its scope to **System Framework**. A Riru-based Xposed/LSPosed setup is one possible option without Zygisk. A compatible framework is still required; a regular Android APK cannot hook `system_server` by itself.
+3. Reboot the device (or restart the framework/system process) and open HMA-OSS to check that the system service is running.
+4. Reuse your existing app list, templates, and configuration. The backend keeps its `/data/misc/hide_my_applist_*/` state directory.
+
+The old Magisk/Zygisk module ZIP, ZygoteLoader Gradle plugin and Zygisk installation scripts were removed from the build. Compile the APK using `./gradlew :app:assembleDebug` or `./gradlew :app:assembleRelease`.
+
+**Migration:** Disable and remove the old `hma_oss_zygisk` module before enabling the Xposed-based APK to avoid hooking `system_server` twice. Keep a config backup before changing frameworks.
+
+**Limitations:** The in-process ART hooks still use AndroidVMTools and depend on Android version, SELinux policy, and the framework's system-server injection support. Android versions beyond those supported by your chosen Xposed implementation are not automatically covered by this conversion.

@@ -4,19 +4,13 @@ on: pull_request
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest ]
-    if: ${{ !startsWith(github.event.head_commit.message, 'docs:') }}
-
+    name: Build Xposed APK (no Zygisk)
+    runs-on: ubuntu-latest
     steps:
       - name: Check out
         uses: actions/checkout@v7
         with:
-          submodules: 'recursive'
+          submodules: recursive
           fetch-depth: 0
 
       - name: Gradle wrapper validation
@@ -26,48 +20,39 @@ jobs:
         uses: actions/setup-java@v6
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
 
-      - name: Prepare env
+      - name: Prepare build environment
         run: |
           touch local.properties
           mkdir -p ~/.config/.android
           ln -s ~/.config/.android ~/.android
+          if [ ! -f ~/.config/.android/debug.keystore ]; then
+            keytool -genkey -keystore ~/.config/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
-      - name: Cache gradle
+      - name: Cache Gradle
         uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.config/.android/debug.keystore
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/*.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      - name: Gradle prebuild
-        run: |
-          echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
-          ./gradlew prebuild
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Create debug keystore
+      - name: Verify Xposed manifest and init entry
         run: |
-          if [ ! -f ~/.config/.android/debug.keystore ]
-          then
-            keytool -genkey -v -keystore ~/.config/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          grep -q 'xposedmodule' app/src/main/AndroidManifest.xml
+          grep -q 'xposedscope' app/src/main/AndroidManifest.xml
+          grep -qx 'org.frknkrc44.hma_oss.zygote.ZygoteEntry' app/src/main/assets/xposed_init
+          ! grep -qi 'ZygoteLoader' app/build.gradle.kts
 
-      - name: Build debug
-        id: buildDebug
-        run: |
-          ./gradlew :app:assembleDebug
-          ./gradlew :zygote:assembleDebug
-          echo "debugZIPName=$(ls zygote/build/outputs/magisk/debug/*.zip | awk -F '(/|.zip)' '{print $6}')" >> $GITHUB_OUTPUT
-
-      - name: Upload debug ZIP
-        if: success()
+      - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
-          archive: false
-          name: ${{ steps.buildDebug.outputs.debugZIPName }}
-          path: |
-            zygote/build/outputs/magisk/debug/*.zip
+          name: HMA-OSS-Xposed-debug
+          path: app/build/outputs/apk/debug/*.apk

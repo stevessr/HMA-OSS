@@ -29,6 +29,12 @@
         android:theme="@style/AppTheme"
         tools:targetApi="33">
 
+        <!-- Xposed legacy API: no Zygisk or Magisk ZIP is required by this APK. -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="Hide My Applist: system framework hooks" />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data android:name="xposedscope" android:value="system;android" />
+
         <activity
             android:name="org.frknkrc44.hma_oss.ui.activity.MainActivity"
             android:exported="true"
