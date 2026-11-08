@@ -5,6 +5,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 . "$ROOT/sukisu/module/state.sh"
 TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
+# Exercise lock helper BEFORE any other function so nested function definitions fail.
+hma_acquire_lock "$TEMP/early-lock" boot-A
+hma_release_lock "$TEMP/early-lock"
 printf 'boot-A 123 456\n' > "$TEMP/marker"
 hma_pid_marker_matches "$TEMP/marker" boot-A 123 456
 ! hma_pid_marker_matches "$TEMP/marker" boot-B 123 456
