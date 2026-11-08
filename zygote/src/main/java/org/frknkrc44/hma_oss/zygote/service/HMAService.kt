@@ -30,6 +30,8 @@ import icu.nullptr.hidemyapplist.common.Utils.getInstalledApplicationsCompat
 import icu.nullptr.hidemyapplist.common.Utils.getPackageInfoCompat
 import icu.nullptr.hidemyapplist.common.Utils.isSystemApp
 import icu.nullptr.hidemyapplist.common.settings_presets.ReplacementItem
+import icu.nullptr.hidemyapplist.common.settings_presets.AccessibilityPreset
+import icu.nullptr.hidemyapplist.common.settings_presets.InputMethodPreset
 import org.frknkrc44.hma_oss.common.BuildConfig
 import org.frknkrc44.hma_oss.zygote.hook.AccessibilityHook
 import org.frknkrc44.hma_oss.zygote.hook.ActivityHook
@@ -345,9 +347,11 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             // Smallest useful HMA surface: package visibility (PMS).
             // Optional groups below stay entirely unhooked unless a scoped
             // application has enabled the corresponding behavior.
-            pms.allPackages.filterTo(systemApps) {
-                pms.getPackageInfoCompat(
-                    it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
+            if ("package-manager" !in installedHookGroups) {
+                pms.allPackages.filterTo(systemApps) {
+                    pms.getPackageInfoCompat(
+                        it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
+                }
             }
             installOnce("package-manager") {
                 when {
@@ -377,7 +381,12 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
             // Activity/broadcast interception is the riskiest globally observed
             // surface, so do not install it when the user disabled protection.
-            if (!config.disableActivityLaunchProtection) {
+            val hasHideRules = scoped.any {
+                it.useWhitelist || it.extraAppList.isNotEmpty() ||
+                    it.extraOppositeAppList.isNotEmpty() ||
+                    it.applyTemplates.isNotEmpty() || it.applyPresets.isNotEmpty()
+            }
+            if (!config.disableActivityLaunchProtection && hasHideRules) {
                 installOnce("activity") { ActivityHook() }
                 installOnce("broadcast") { BroadcastHook() }
             }
@@ -388,10 +397,10 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
                     it.applySettingTemplates.isNotEmpty() }) {
                 installOnce("content-provider-settings") { ContentProviderHook() }
             }
-            if (scoped.any { it.applySettingsPresets.contains("accessibility") }) {
+            if (scoped.any { it.applySettingsPresets.contains(AccessibilityPreset.NAME) }) {
                 installOnce("accessibility") { AccessibilityHook() }
             }
-            if (scoped.any { it.applySettingsPresets.contains("input_method") }) {
+            if (scoped.any { it.applySettingsPresets.contains(InputMethodPreset.NAME) }) {
                 installOnce("input-method") { ImmHook() }
             }
             if (config.forceMountData ||
