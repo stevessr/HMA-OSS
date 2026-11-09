@@ -22,7 +22,11 @@ cat > "$TMP/mock/pidof" <<'EOF'
 # A test-only invalid target ensures no actual injection is attempted.
 exit 0
 EOF
-chmod +x "$TMP/mock/cat" "$TMP/mock/pidof"
+cat > "$TMP/mock/getprop" <<'EOF'
+#!/bin/sh
+[ "$1" = sys.boot_completed ] && echo 1
+EOF
+chmod +x "$TMP/mock/cat" "$TMP/mock/pidof" "$TMP/mock/getprop"
 run_try() {
   set +e
   TRY_LOG="$(PATH="$TMP/mock:$PATH" sh "$MOD/try-inject.sh" 2>&1)"
