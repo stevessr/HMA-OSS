@@ -3,16 +3,17 @@
 MODDIR="${0%/*}"
 . "$MODDIR/state.sh" || exit 1
 [ -f "$MODDIR/disable" ] && { echo 'Module is disabled'; exit 1; }
-[ -f "$MODDIR/injection_failed" ] && {
-  echo 'Previous injection failed; reboot and explicitly retry in Action'
-  exit 1
-}
+# A failure lock is boot-scoped, not a permanent installation lock.
 [ -x "$MODDIR/bin/hma-injector" ] || { echo 'Native injector missing'; exit 1; }
 [ -f "$MODDIR/lib/libhma-payload.so" ] || { echo 'JNI payload missing'; exit 1; }
 
 BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 [ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
-if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID"; then
+if hma_install_reboot_pending "$MODDIR/injection_failed" "$BOOT_ID" "$(hma_system_server_start)"; then
+  echo 'Native injection failed in this system_server instance; restart Android before retry'
+  exit 11
+fi
+if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID" "$(hma_system_server_start)"; then
   echo 'Reboot required before injecting the standalone HMA backend'
   exit 12
 fi
@@ -62,7 +63,7 @@ sleep 2
 }
 
 # Persist failure BEFORE attaching: a system_server crash cannot cause boot loops.
-printf '%s\n' "$BOOT_ID" > "$MODDIR/injection_failed" || exit 1
+printf '%s %s\n' "$BOOT_ID" "$START_TICKS" > "$MODDIR/injection_failed" || exit 1
 "$MODDIR/bin/hma-injector" "$PID" "$MODDIR/lib/libhma-payload.so" "$APK"
 RESULT=$?
 if [ "$RESULT" -ne 0 ]; then

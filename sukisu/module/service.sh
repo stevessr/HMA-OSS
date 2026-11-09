@@ -3,7 +3,7 @@
 MODDIR="${0%/*}"
 [ -f "$MODDIR/enabled" ] || exit 0
 [ -f "$MODDIR/disable" ] && exit 0
-[ -f "$MODDIR/injection_failed" ] && exit 0
+# try-inject.sh handles failure markers by boot ID, not file existence.
 
 i=0
 while [ "$i" -lt 60 ]; do

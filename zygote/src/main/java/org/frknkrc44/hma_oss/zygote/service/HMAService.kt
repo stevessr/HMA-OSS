@@ -30,6 +30,8 @@ import icu.nullptr.hidemyapplist.common.Utils.getInstalledApplicationsCompat
 import icu.nullptr.hidemyapplist.common.Utils.getPackageInfoCompat
 import icu.nullptr.hidemyapplist.common.Utils.isSystemApp
 import icu.nullptr.hidemyapplist.common.settings_presets.ReplacementItem
+import icu.nullptr.hidemyapplist.common.settings_presets.AccessibilityPreset
+import icu.nullptr.hidemyapplist.common.settings_presets.InputMethodPreset
 import org.frknkrc44.hma_oss.common.BuildConfig
 import org.frknkrc44.hma_oss.zygote.hook.AccessibilityHook
 import org.frknkrc44.hma_oss.zygote.hook.ActivityHook
@@ -61,11 +63,13 @@ import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.getLaunchIntentForP
 import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.isConflictingModuleInstalled
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.ensureFileIsRW
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.findAndVerifyAppSignature
+import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.isAppDataIsolationEnabled
 import org.frknkrc44.hma_oss.zygote.util.UserManagerUtils
 import java.io.File
 import java.lang.reflect.Modifier
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.Path
 
 class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
@@ -79,6 +83,13 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     val hooker = BulkHooker()
     val dataHolder = HMAServiceDataHolder()
+    private val lazyHookLock = Any()
+    // Each group is attached at most once. Do not install a broad hook surface
+    // merely because one configured caller needs basic PackageManager hiding.
+    private val installedHookGroups = mutableSetOf<String>()
+    // Cache negative lookups for unconfigured callers to avoid repeated
+    // PackageManager work on unrelated video/graphics application requests.
+    private val scopedUidCache = ConcurrentHashMap<Int, Boolean>()
 
     private var managerWorkMode: Int = Constants.MANAGER_WORK_MODE_UNKNOWN
 
@@ -101,6 +112,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
     internal var appUid = 0
         private set
 
+    @Volatile
     var config = JsonConfig().apply { detailLog = true }
         private set
 
@@ -131,7 +143,10 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             }
 
             if (managerWorkMode != Constants.MANAGER_WORK_MODE_NO_HOOKS) {
-                installHooks()
+                // Start Binder/control services without altering framework methods.
+                // Only activate ART hooks when an app is explicitly scoped (or
+                // a user configured defaultConfig for future apps).
+                installHooksWhenConfigured()
 
                 if (hooker.hooksWasCrashed) {
                     managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
@@ -298,44 +313,118 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
         reloadPresets(!isFileAvailable)
     }
 
-    private fun installHooks() {
-        pms.allPackages.filterTo(systemApps) {
-            pms.getPackageInfoCompat(
-                it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
+    /**
+     * Lazy framework-hook activation: this backend never injects into app
+     * processes. It lives in system_server; configured caller scopes decide
+     * whether a framework hook is installed/has any filtering effect.
+     * A new scoped app activates hooks on demand through writeConfig or the
+     * file observer, without needing a second system_server ptrace attach.
+     */
+    private fun installHooksWhenConfigured() {
+        if (appUid <= 0 ||
+            managerWorkMode == Constants.MANAGER_WORK_MODE_NO_HOOKS ||
+            managerWorkMode == Constants.MANAGER_WORK_MODE_CRASHED ||
+            hooker.hooksWasCrashed ||
+            (config.scope.isEmpty() && config.defaultConfig == null)
+        ) return
+
+        synchronized(lazyHookLock) {
+            if (hooker.hooksWasCrashed) return
+            // An explicit default applies to future packages; do not silently
+            // enable it otherwise. All policy tests are repeated when config
+            // changes; only newly needed hook groups are attached.
+            val scoped = config.scope.values.toList() +
+                listOfNotNull(config.defaultConfig)
+
+            fun installOnce(group: String, makeHook: () -> IFrameworkHook) {
+                if (group in installedHookGroups || hooker.hooksWasCrashed) return
+                val hook = makeHook()
+                hook.load()
+                if (hooker.hooksWasCrashed) {
+                    managerWorkMode = Constants.MANAGER_WORK_MODE_CRASHED
+                    saveModuleStatus()
+                    return
+                }
+                installedHookGroups.add(group)
+                frameworkHooks.add(hook)
+                logI(TAG) { "Lazy hook group enabled: $group" }
+            }
+
+            // Smallest useful HMA surface: package visibility (PMS).
+            // Optional groups below stay entirely unhooked unless a scoped
+            // application has enabled the corresponding behavior.
+            if ("package-manager" !in installedHookGroups) {
+                pms.allPackages.filterTo(systemApps) {
+                    pms.getPackageInfoCompat(
+                        it, 0L, 0)?.applicationInfo?.isSystemApp() ?: false
+                }
+            }
+            installOnce("package-manager") {
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> PmsHookTarget34()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> PmsHookTarget33()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> PmsHookTarget31()
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> PmsHookTarget30()
+                    else -> PmsHookTarget29()
+                }
+            }
+
+            if (scoped.any { it.hideInstallationSource }) {
+                installOnce("installer") {
+                    when {
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> InstallerHookTarget34()
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> InstallerHookTarget33()
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> InstallerHookTarget30()
+                        else -> InstallerHookTarget29()
+                    }
+                }
+            }
+            if (config.altAppDataIsolation || config.altVoldAppDataIsolation) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    installOnce("app-data-isolation") { AppDataIsolationHook() }
+                }
+            }
+
+            // Activity/broadcast interception is the riskiest globally observed
+            // surface, so do not install it when the user disabled protection.
+            val hasHideRules = scoped.any {
+                it.useWhitelist || it.extraAppList.isNotEmpty() ||
+                    it.extraOppositeAppList.isNotEmpty() ||
+                    it.applyTemplates.isNotEmpty() || it.applyPresets.isNotEmpty()
+            }
+            // Per-app inversion may re-enable protection even when the global
+            // disable switch is on. Evaluate both together for correctness.
+            val hasActivityPolicy = hasHideRules && scoped.any {
+                it.invertActivityLaunchProtection == config.disableActivityLaunchProtection
+            }
+            if (hasActivityPolicy) {
+                installOnce("activity") { ActivityHook() }
+                installOnce("broadcast") { BroadcastHook() }
+            }
+            // Keep the one package-event watcher for manager signature changes,
+            // package/UID cache invalidation and default/preset propagation.
+            installOnce("package-events") { PmsPackageEventsHook() }
+            if (scoped.any { it.applySettingsPresets.isNotEmpty() ||
+                    it.applySettingTemplates.isNotEmpty() }) {
+                installOnce("content-provider-settings") { ContentProviderHook() }
+            }
+            if (scoped.any { it.applySettingsPresets.contains(AccessibilityPreset.NAME) }) {
+                installOnce("accessibility") { AccessibilityHook() }
+            }
+            if (scoped.any { it.applySettingsPresets.contains(InputMethodPreset.NAME) }) {
+                installOnce("input-method") { ImmHook() }
+            }
+            val needsZygotePolicy = scoped.any {
+                it.restrictedZygotePermissions.isNotEmpty()
+            } || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                config.forceMountData && isAppDataIsolationEnabled(config))
+            if (needsZygotePolicy) {
+                installOnce("zygote-process-policy") { ZygoteHook() }
+            }
+            // UsageStats queries are only read when scoped package visibility
+            // is active, not at service bootstrap.
+            installOnce("usage-stats") { UsageStatsHook() }
         }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            frameworkHooks.add(PmsHookTarget34())
-            frameworkHooks.add(InstallerHookTarget34())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            frameworkHooks.add(PmsHookTarget33())
-            frameworkHooks.add(InstallerHookTarget33())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            frameworkHooks.add(PmsHookTarget31())
-            frameworkHooks.add(InstallerHookTarget30())
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            frameworkHooks.add(PmsHookTarget30())
-            frameworkHooks.add(InstallerHookTarget30())
-        } else {
-            frameworkHooks.add(PmsHookTarget29())
-            frameworkHooks.add(InstallerHookTarget29())
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            frameworkHooks.add(AppDataIsolationHook())
-        }
-
-        frameworkHooks.add(ActivityHook())
-        frameworkHooks.add(BroadcastHook())
-        frameworkHooks.add(PmsPackageEventsHook())
-        frameworkHooks.add(AccessibilityHook())
-        frameworkHooks.add(ContentProviderHook())
-        frameworkHooks.add(ImmHook())
-        frameworkHooks.add(ZygoteHook())
-        frameworkHooks.add(UsageStatsHook())
-
-        frameworkHooks.forEach(IFrameworkHook::load)
-        logI(TAG) { "Hooks installed" }
     }
 
     fun increasePMFilterCount(callingUid: Int?, amount: Int = 1) = dataHolder.increaseFilterCount(
@@ -363,6 +452,18 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
     )
 
     fun isHookEnabled(packageName: String?) = config.scope.containsKey(packageName)
+
+    fun scopedCallerUidCached(uid: Int): Boolean? = scopedUidCache[uid]
+
+    fun rememberScopedCallerUid(uid: Int, callingApps: Array<String>?): Boolean {
+        // Resolve using each API-specific caller resolver (some OEM versions
+        // use a Computer snapshot rather than a PackageManager binder call).
+        // Never permanently cache an unavailable/empty lookup as negative.
+        if (uid <= 0 || callingApps.isNullOrEmpty()) return false
+        val scoped = callingApps.any { config.scope.containsKey(it) }
+        scopedUidCache.putIfAbsent(uid, scoped)
+        return scoped
+    }
 
     fun isAnySettingsReplacementsEnabled(packageName: String?) = config.scope[packageName]?.let {
         it.applySettingsPresets.isNotEmpty() || it.applySettingTemplates.isNotEmpty()
@@ -513,6 +614,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
                     return
                 }
                 config = newConfig
+                scopedUidCache.clear()
                 ensureFileIsRW(configFile, true)
                 configFile.writeText(json)
                 dataHolder.clearUidCache()
@@ -526,6 +628,9 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             }
         }
 
+        // New per-app settings can enable hooks without a second native
+        // injection; removing a scope immediately stops its filtering effect.
+        installHooksWhenConfigured()
         writeFilterCount(true)
 
         writtenByManager = false
@@ -565,6 +670,8 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     override fun handlePackageEvent(eventType: String?, packageName: String?, extras: Bundle?) {
         if (eventType == null || packageName == null) return
+        // UID -> package associations can change after install/uninstall.
+        scopedUidCache.clear()
 
         AppPresets.instance.apply {
             when (eventType) {
@@ -819,6 +926,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
         if (config != loading) {
             loading.cleanRemnantsFromConfig()
             config = loading
+            scopedUidCache.clear()
         }
 
         if (config.configVersion != BuildConfig.CONFIG_VERSION) {
@@ -828,6 +936,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             writeConfig(config.toString())
         }
 
+        installHooksWhenConfigured()
         logI(TAG) { "Config loaded" }
     }
 

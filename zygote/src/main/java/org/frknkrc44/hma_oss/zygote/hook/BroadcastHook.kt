@@ -13,13 +13,9 @@ import org.frknkrc44.hma_oss.zygote.util.Logcat.logI
 import org.frknkrc44.hma_oss.zygote.util.ZLUtils.dumpArgs
 import org.frknkrc44.hma_oss.zygote.util.ZLUtils.getArgument
 import org.frknkrc44.hma_oss.zygote.util.ZLUtils.getObjectField
-import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.ACTION_USB_STATE
-import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.ACTIVITY_MANAGER_SERVICE_CLASS
-import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.BROADCAST_CONTROLLER_CLASS
 import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.BROADCAST_PROCESS_QUEUE_CLASS
 import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.BROADCAST_QUEUE_CLASS
 import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.BROADCAST_QUEUE_IMPL_CLASS
-import org.frknkrc44.hma_oss.zygote.util.ZygoteConstants.USB_FUNCTION_ADB
 
 class BroadcastHook : IFrameworkHook {
     override val TAG = "BroadcastHook"
@@ -60,18 +56,10 @@ class BroadcastHook : IFrameworkHook {
                 )
             }
 
-            // replace USB state receiver
-            hookBefore(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                    BROADCAST_CONTROLLER_CLASS
-                } else {
-                    ACTIVITY_MANAGER_SERVICE_CLASS
-                },
-                "broadcastIntentLocked",
-            ) { _, frame, _ ->
-                val intent = frame.dumpArgs().firstOrNullWithType<Intent>() ?: return@hookBefore
-                changeUsbStateBroadcast(intent)
-            }
+            // The original global USB_STATE mutation affected every
+            // receiving process, including apps outside HMA scope. The
+            // SukiSU backend deliberately leaves system-wide USB broadcasts
+            // unchanged to keep unconfigured apps and media playback intact.
         }
     }
 
@@ -106,11 +94,5 @@ class BroadcastHook : IFrameworkHook {
         }
     }
 
-    private fun changeUsbStateBroadcast(intent: Intent) {
-        if (config.disableActivityLaunchProtection) return
 
-        if (intent.action == ACTION_USB_STATE) {
-            intent.removeExtra(USB_FUNCTION_ADB)
-        }
-    }
 }

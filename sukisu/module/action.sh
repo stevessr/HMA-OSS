@@ -3,7 +3,7 @@ MODDIR="${0%/*}"
 . "$MODDIR/state.sh" || exit 1
 BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 [ -n "$BOOT_ID" ] || { echo 'Cannot read boot ID'; exit 1; }
-if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID"; then
+if hma_install_reboot_pending "$MODDIR/installed_boot_id" "$BOOT_ID" "$(hma_system_server_start)"; then
   echo 'Reboot required after installation/migration before enabling HMA hooks.'
   exit 12
 fi
@@ -22,14 +22,9 @@ if [ -f "$MODDIR/enabled" ]; then
   exit 0
 fi
 
-if [ -f "$MODDIR/injection_failed" ]; then
-  FAILED_BOOT=$(cat "$MODDIR/injection_failed" 2>/dev/null)
-  if [ "$FAILED_BOOT" = "$BOOT_ID" ]; then
-    echo 'This boot had a failed or interrupted injection. Reboot before retrying.'
-    exit 11
-  fi
-  # Explicit Action invocation on a new boot is the only retry mechanism.
-  rm -f "$MODDIR/injection_failed" || exit 1
+if hma_install_reboot_pending "$MODDIR/injection_failed" "$BOOT_ID" "$(hma_system_server_start)"; then
+  echo 'This system_server instance had a failed/interrupted injection; restart Android or reboot before retry.'
+  exit 11
 fi
 
 [ -x "$MODDIR/bin/hma-injector" ] || { echo 'Native backend missing'; exit 1; }
