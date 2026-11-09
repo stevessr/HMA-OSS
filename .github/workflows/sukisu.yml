@@ -74,8 +74,9 @@ jobs:
             unzip -Z1 sukisu/build/HMA-OSS-SukiSU-experimental.zip | grep -qx "$entry"
           done
 
-      - name: Upload experimental test build (not a release)
+      - name: Upload installable SukiSU module ZIP directly (no outer ZIP)
         uses: actions/upload-artifact@v7
         with:
-          name: HMA-OSS-SukiSU-experimental
           path: sukisu/build/HMA-OSS-SukiSU-experimental.zip
+          archive: false
+          if-no-files-found: error
