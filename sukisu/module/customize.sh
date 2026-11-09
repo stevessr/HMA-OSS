@@ -30,7 +30,7 @@ BOOT_SERVER_START=$(hma_system_server_start)
 printf '%s %s\n' "$BOOT_ID" "$BOOT_SERVER_START" > "$MODPATH/installed_boot_id" ||
   abort '! Cannot write reboot-required marker'
 
-rm -f "$MODPATH/enabled" "$MODPATH/injected_pid" "$MODPATH/injection_failed"
+rm -f "$MODPATH/enabled" "$MODPATH/injected_pid" "$MODPATH/injection_failed" "$MODPATH/attempt_budget"
 mkdir -p "$MODPATH/log" || abort '! Cannot create module log directory'
 set_perm "$MODPATH/bin/hma-injector" 0 0 0755
 set_perm "$MODPATH/lib/libhma-payload.so" 0 0 0644

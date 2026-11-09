@@ -97,3 +97,12 @@ The pinned experimental certificate SHA-256 fingerprint is:
 ## Direct GitHub Actions download
 
 `actions/upload-artifact@v7` uses `archive: false` for the **single already-built module ZIP**. Downloading the workflow artifact yields `HMA-OSS-SukiSU-experimental.zip` directly; no ZIP-within-a-ZIP is created. The workflow verifies the root entries before upload.
+
+
+## Framework soft reboot recovery and upstream alignment
+
+- **Upstream baseline:** checked against `frknkrc44/HMA-OSS` `master` commit `fe7a36799f040a79c666fb05b8479e69854656df` (tag/release `oss-175`, November 6, 2026). This fork already includes all upstream master commits as of November 9, 2026; there are no missing upstream master commits to merge. Standalone SukiSU backend intentionally remains independent from upstream Zygisk module packaging.
+- `service.sh` stays resident as a low-rate monitor after boot and recognizes `system_server` replacement during a **framework-only soft reboot** even when the kernel boot UUID stays unchanged. It waits for framework boot completion and stable target process identity before injecting the new process. The one-time boot service hook alone cannot relaunch after every framework restart.
+- Both injection operation locks and failure markers now track the specific `system_server` instance, permitting safe reclamation across a soft reboot while preventing duplicate injection in the same instance. The watcher itself uses a separately owned lock with PID/start time and clears abandoned watchers.
+- To guard against a crash-restart cycle, at most **two unverified native attempts in five minutes** are permitted per kernel boot. A verified health handshake clears the attempt budget. Preflight failures due to PackageManager startup are retried later without consuming this budget. The autostart preference is not silently deleted after a transient failure.
+- WebUI's Start action verifies/injects the current process even when next-boot autostart is already enabled. The logging window includes watchdog attempts and native return codes; uninstall removes the attempt budget without deleting app data.

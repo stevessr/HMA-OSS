@@ -60,20 +60,31 @@ hma_pid_marker_matches() {
 # Atomically lock operations. A lock abandoned on a previous boot is safe to
 # discard; never steal one created in the current boot.
 hma_acquire_lock() {
-  lock_path="$1" lock_boot="$2"
-  if mkdir "$lock_path" 2>/dev/null; then
-    printf '%s\n' "$lock_boot" > "$lock_path/boot" || {
-      rmdir "$lock_path" 2>/dev/null || true
+  hma_lock_path="$1" hma_lock_boot="$2"
+  hma_lock_pid="${3:-}" hma_lock_start="${4:-}"
+  if mkdir "$hma_lock_path" 2>/dev/null; then
+    printf '%s %s %s\n' "$hma_lock_boot" "$hma_lock_pid" "$hma_lock_start" > "$hma_lock_path/boot" || {
+      rm -f "$hma_lock_path/boot"
+      rmdir "$hma_lock_path" 2>/dev/null || true
       return 1
     }
     return 0
   fi
-  [ -r "$lock_path/boot" ] || return 1
-  [ "$(cat "$lock_path/boot" 2>/dev/null)" != "$lock_boot" ] || return 1
-  rm -f "$lock_path/boot" || return 1
-  rmdir "$lock_path" 2>/dev/null || return 1
-  mkdir "$lock_path" 2>/dev/null || return 1
-  printf '%s\n' "$lock_boot" > "$lock_path/boot" || return 1
+  [ -r "$hma_lock_path/boot" ] || return 1
+  hma_old_boot='' hma_old_pid='' hma_old_start=''
+  IFS=' ' read -r hma_old_boot hma_old_pid hma_old_start < "$hma_lock_path/boot" || return 1
+  if [ "$hma_old_boot" = "$hma_lock_boot" ]; then
+    # Only reclaim a lock from a DIFFERENT, fully identified system_server
+    # instance. Legacy same-boot lock files remain fail-closed.
+    [ -n "$hma_lock_pid" ] && [ -n "$hma_lock_start" ] &&
+      [ -n "$hma_old_pid" ] && [ -n "$hma_old_start" ] || return 1
+    [ "$hma_old_pid" != "$hma_lock_pid" ] ||
+      [ "$hma_old_start" != "$hma_lock_start" ] || return 1
+  fi
+  rm -f "$hma_lock_path/boot" || return 1
+  rmdir "$hma_lock_path" 2>/dev/null || return 1
+  mkdir "$hma_lock_path" 2>/dev/null || return 1
+  printf '%s %s %s\n' "$hma_lock_boot" "$hma_lock_pid" "$hma_lock_start" > "$hma_lock_path/boot" || return 1
 }
 
 hma_release_lock() {
@@ -92,4 +103,59 @@ hma_fresh_workmode_ok() {
   file_time=$(stat -c %Y "$1" 2>/dev/null) || return 1
   case "$file_time" in ''|*[!0-9]*) return 1 ;; esac
   [ "$file_time" -gt "$2" ] && hma_workmode_ok "$1"
+}
+
+
+// Single long-lived lightweight service watcher, with a stale-owner check.
+// A framework soft reboot keeps the kernel ID but replaces system_server.
+hma_monitor_lock() {
+  hma_watch_path="$1" hma_watch_boot="$2"
+  hma_watch_start=$(hma_process_start "$$")
+  [ -n "$hma_watch_start" ] || return 1
+  if mkdir "$hma_watch_path" 2>/dev/null; then
+    printf '%s %s %s\n' "$hma_watch_boot" "$$" "$hma_watch_start" > "$hma_watch_path/owner" || return 1
+    return 0
+  fi
+  [ -r "$hma_watch_path/owner" ] || return 1
+  hma_owner_boot='' hma_owner_pid='' hma_owner_start=''
+  IFS=' ' read -r hma_owner_boot hma_owner_pid hma_owner_start < "$hma_watch_path/owner" || return 1
+  if [ "$hma_owner_boot" = "$hma_watch_boot" ] && [ -n "$hma_owner_pid" ] &&
+     [ -n "$hma_owner_start" ] &&
+     [ "$(hma_process_start "$hma_owner_pid")" = "$hma_owner_start" ] &&
+     kill -0 "$hma_owner_pid" 2>/dev/null; then
+    return 1
+  fi
+  rm -f "$hma_watch_path/owner" || return 1
+  rmdir "$hma_watch_path" 2>/dev/null || return 1
+  mkdir "$hma_watch_path" 2>/dev/null || return 1
+  printf '%s %s %s\n' "$hma_watch_boot" "$$" "$hma_watch_start" > "$hma_watch_path/owner" || return 1
+}
+
+hma_monitor_release() {
+  rm -f "$1/owner"
+  rmdir "$1" 2>/dev/null || true
+}
+
+# At most two *unverified* native attempts per five-minute window in the
+# same kernel boot. A verified handshake clears the budget. This prevents
+# repeated framework crashes from turning a watchdog into a boot loop.
+hma_record_native_attempt() {
+  hma_budget_file="$1" hma_budget_boot="$2"
+  hma_budget_now=$(date +%s) || return 1
+  hma_budget_prev_boot='' hma_budget_prev_time='' hma_budget_count=''
+  if [ -r "$hma_budget_file" ]; then
+    IFS=' ' read -r hma_budget_prev_boot hma_budget_prev_time hma_budget_count < "$hma_budget_file" || return 1
+  fi
+  case "$hma_budget_prev_time:$hma_budget_count" in
+    *[!0-9:]*|:*|*:) hma_budget_count=0; hma_budget_prev_time="$hma_budget_now" ;;
+  esac
+  if [ "$hma_budget_prev_boot" != "$hma_budget_boot" ] ||
+     [ "$hma_budget_now" -lt "$hma_budget_prev_time" ] ||
+     [ "$((hma_budget_now - hma_budget_prev_time))" -ge 300 ]; then
+    hma_budget_count=0
+    hma_budget_prev_time="$hma_budget_now"
+  fi
+  [ "$hma_budget_count" -lt 2 ] || return 1
+  hma_budget_count=$((hma_budget_count + 1))
+  printf '%s %s %s\n' "$hma_budget_boot" "$hma_budget_prev_time" "$hma_budget_count" > "$hma_budget_file" || return 1
 }

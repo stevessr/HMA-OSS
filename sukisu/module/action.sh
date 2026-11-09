@@ -12,7 +12,7 @@ fi
 # Disabling autostart must not race an active system_server injection.
 if [ -f "$MODDIR/enabled" ]; then
   LOCKDIR="$MODDIR/.inject-lock"
-  hma_acquire_lock "$LOCKDIR" "$BOOT_ID" || {
+  hma_acquire_lock "$LOCKDIR" "$BOOT_ID" "$(pidof system_server 2>/dev/null | awk '{print $1}')" "$(hma_system_server_start)" || {
     echo 'Injection in progress; retry Action after it finishes'
     exit 10
   }
