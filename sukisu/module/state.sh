@@ -107,7 +107,7 @@ hma_fresh_workmode_ok() {
 
 
 # Single long-lived lightweight service watcher, with a stale-owner check.
-// A framework soft reboot keeps the kernel ID but replaces system_server.
+# A framework soft reboot keeps the kernel ID but replaces system_server.
 hma_monitor_lock() {
   hma_watch_path="$1" hma_watch_boot="$2"
   hma_watch_start=$(hma_process_start "$$")
