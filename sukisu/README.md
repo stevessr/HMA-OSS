@@ -108,3 +108,10 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - WebUI's Start action verifies/injects the current process even when next-boot autostart is already enabled. The logging window includes watchdog attempts and native return codes; uninstall removes the attempt budget without deleting app data.
 
 - Regression tests cover the full resident service lifecycle across two fake `system_server` process identities with an unchanged kernel boot ID, including a failed first attempt, lock recovery, retry budget, and duplicate-monitor protection.
+
+
+## Material Design 3 WebUI
+
+The offline KernelSU/SukiSU WebUI uses Material Design 3 tonal color roles, surface containers, shaped cards, button emphasis, status semantics, dialogs and snackbar feedback. The light/dark/system theme picker follows the WebView's preferred color scheme, with manual preference stored only in local WebView storage. No external icon/font CDN is needed: all icons are embedded SVG symbols. Screen-reader labels, visible focus rings, reduced-motion styles and responsive 320px+ layout are included.
+
+The WebUI preserves the existing fixed-command root bridge; UI actions only invoke the allowlisted status/install/start/stop/logs script operations. Status parsing is treated as plain text rather than HTML. The Start control is disabled when the installation reboot requirement has not cleared or native injection was already locked out for the current system_server. A dedicated Node.js UI regression checks the real JavaScript status rendering and action guards without adding dependencies.

@@ -13,6 +13,8 @@ bash -n "$ROOT/sukisu/tests/lazy-scoped-hooks-tests.sh"
 bash -n "$ROOT/sukisu/tests/boot-recovery-tests.sh"
 bash -n "$ROOT/sukisu/tests/manager-apk-tests.sh"
 bash -n "$ROOT/sukisu/tests/webui-tests.sh"
+node --check "$ROOT/sukisu/module/webroot/app.js"
+node "$ROOT/sukisu/tests/webui-md3-tests.js"
 bash -n "$ROOT/sukisu/tests/soft-reboot-monitor-tests.sh"
 bash "$ROOT/sukisu/tests/state-tests.sh"
 if ! bash "$ROOT/sukisu/tests/action-tests.sh"; then
