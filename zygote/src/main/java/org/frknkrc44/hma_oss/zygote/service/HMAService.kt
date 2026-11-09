@@ -63,6 +63,7 @@ import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.getLaunchIntentForP
 import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.isConflictingModuleInstalled
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.ensureFileIsRW
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.findAndVerifyAppSignature
+import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.isAppDataIsolationEnabled
 import org.frknkrc44.hma_oss.zygote.util.UserManagerUtils
 import java.io.File
 import java.lang.reflect.Modifier
@@ -400,9 +401,9 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
                 installOnce("activity") { ActivityHook() }
                 installOnce("broadcast") { BroadcastHook() }
             }
-            if (config.defaultConfig != null || scoped.any { it.applyPresets.isNotEmpty() }) {
-                installOnce("package-events") { PmsPackageEventsHook() }
-            }
+            // Keep the one package-event watcher for manager signature changes,
+            // package/UID cache invalidation and default/preset propagation.
+            installOnce("package-events") { PmsPackageEventsHook() }
             if (scoped.any { it.applySettingsPresets.isNotEmpty() ||
                     it.applySettingTemplates.isNotEmpty() }) {
                 installOnce("content-provider-settings") { ContentProviderHook() }
@@ -413,8 +414,11 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
             if (scoped.any { it.applySettingsPresets.contains(InputMethodPreset.NAME) }) {
                 installOnce("input-method") { ImmHook() }
             }
-            if (config.forceMountData ||
-                scoped.any { it.restrictedZygotePermissions.isNotEmpty() }) {
+            val needsZygotePolicy = scoped.any {
+                it.restrictedZygotePermissions.isNotEmpty()
+            } || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                config.forceMountData && isAppDataIsolationEnabled(config))
+            if (needsZygotePolicy) {
                 installOnce("zygote-process-policy") { ZygoteHook() }
             }
             // UsageStats queries are only read when scoped package visibility

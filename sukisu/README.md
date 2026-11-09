@@ -84,3 +84,5 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - PackageManager hot paths now cache per-UID scoped membership. An app with no HMA configuration returns before target package inspection and filter-rule evaluation. The cache is invalidated when app installation state or HMA configuration changes.
 
 - The fast path resolves per-UID package membership through the same OEM-specific resolver as the active hook, caches only valid results, and does not perform an additional Binder lookup. Per-app activity protection inversion remains respected when selectively enabling activity hooks.
+
+- The hot ZygoteProcess-start hook now attaches only if a configured app requests restricted process permissions or data isolation actually requires force-mounting. A lightweight package-event listener remains for manager signature changes and config/cache correctness.
