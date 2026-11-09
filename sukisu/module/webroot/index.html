@@ -1,49 +1,138 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fffbfe">
   <meta name="color-scheme" content="light dark">
-  <title>HMA-OSS · SukiSU</title>
+  <title>HMA-OSS · Material 3</title>
   <link rel="stylesheet" href="./style.css">
   <script src="./app.js" defer></script>
 </head>
 <body>
-  <main class="layout">
-    <header class="hero">
-      <span class="eyebrow">SukiSU · ROOT MODULE</span>
-      <h1>HMA-OSS</h1>
-      <p>独立原生后端 · 不依赖 Zygisk</p>
-      <span class="tag">EXPERIMENTAL</span>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.3 3.4 9.5 8 11 4.6-1.5 8-5.7 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 18.5h4"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.4 6.5a8 8 0 1 0 11.2 0"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="m6.5 9 3 3-3 3m6 0h5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" aria-label="HMA-OSS SukiSU 模块">
+        <div class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg></div>
+        <div class="brand-copy"><span class="brand-title">HMA-OSS</span><span class="brand-subtitle">SukiSU Native</span></div>
+      </div>
+      <button type="button" id="refresh" class="icon-button" aria-label="刷新模块状态" title="刷新模块状态">
+        <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
+      </button>
     </header>
-    <section class="panel">
-      <div class="section-title"><h2>模块状态</h2><button type="button" id="refresh" class="ghost">刷新</button></div>
-      <div class="metrics">
-        <div class="metric"><span>管理器 APK</span><strong id="manager">检测中…</strong></div>
-        <div class="metric"><span>重启要求</span><strong id="reboot">检测中…</strong></div>
-        <div class="metric"><span>原生注入</span><strong id="injection">检测中…</strong></div>
-        <div class="metric"><span>开机自动启动</span><strong id="autostart">检测中…</strong></div>
-      </div>
-      <p class="meta" id="device">正在读取设备状态</p>
-    </section>
-    <section class="panel">
-      <h2>管理器</h2>
-      <p class="muted">模块已内置签名固定的 manager.apk。尚未安装时可以直接在这里安装或更新；签名不一致时不会卸载已有应用。</p>
-      <button type="button" id="install" class="primary">安装 / 更新内置管理器 APK</button>
-    </section>
-    <section class="panel">
-      <h2>注入控制</h2>
-      <p class="muted">首次安装后需重启，再进行一次注入测试。禁用自动启动不会立即卸载 system_server 中已经加载的 Hook。</p>
-      <div class="controls">
-        <button type="button" id="start" class="primary">测试注入并启用开机启动</button>
-        <button type="button" id="stop" class="secondary">禁用开机自动启动</button>
-      </div>
-    </section>
-    <section class="panel">
-      <div class="section-title"><h2>运行日志</h2><button type="button" id="logs" class="ghost">读取</button></div>
-      <pre id="output" role="status" aria-live="polite">可在此查看操作结果和最近的 service.log。</pre>
-    </section>
-    <footer>仅在 KernelSU/SukiSU 管理器内运行 · 不上传日志或设备信息</footer>
-  </main>
+
+    <main>
+      <section class="overview" id="status-hero" data-tone="neutral" aria-labelledby="summary-title">
+        <div class="overview-top">
+          <span class="overline">模块概览</span>
+          <span class="version-chip" id="version">EXPERIMENTAL</span>
+        </div>
+        <div class="overview-body">
+          <div class="overview-emblem"><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg></div>
+          <div class="overview-copy">
+            <h1 id="summary-title">正在检查状态</h1>
+            <p id="summary-desc">正在读取 KernelSU / SukiSU 模块状态…</p>
+          </div>
+        </div>
+        <p class="device-line" id="device">正在读取设备信息</p>
+      </section>
+
+      <section class="section" aria-labelledby="status-heading">
+        <div class="section-heading"><h2 id="status-heading">运行状态</h2><span class="section-caption">当前设备</span></div>
+        <div class="metrics">
+          <article class="metric" id="manager-card" data-tone="neutral">
+            <div class="metric-top"><span>管理器 APK</span><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg></div>
+            <strong id="manager">检测中…</strong><span class="metric-foot">Android 应用</span>
+          </article>
+          <article class="metric" id="reboot-card" data-tone="neutral">
+            <div class="metric-top"><span>重启状态</span><svg class="icon" aria-hidden="true"><use href="#i-restart"></use></svg></div>
+            <strong id="reboot">检测中…</strong><span class="metric-foot">Framework 就绪</span>
+          </article>
+          <article class="metric" id="injection-card" data-tone="neutral">
+            <div class="metric-top"><span>原生后端</span><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></div>
+            <strong id="injection">检测中…</strong><span class="metric-foot">system_server</span>
+          </article>
+          <article class="metric" id="autostart-card" data-tone="neutral">
+            <div class="metric-top"><span>自动启动</span><svg class="icon" aria-hidden="true"><use href="#i-power"></use></svg></div>
+            <strong id="autostart">检测中…</strong><span class="metric-foot">开机 / 软重启恢复</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="actions-heading">
+        <div class="section-heading"><h2 id="actions-heading">模块管理</h2></div>
+
+        <article class="surface-card">
+          <div class="card-heading">
+            <span class="card-icon"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg></span>
+            <div><h3>HMA 管理器</h3><p>安装或更新模块内置的 APK</p></div>
+          </div>
+          <p class="supporting">使用模块自带的固定测试签名 APK。签名不一致时保留现有应用及数据。</p>
+          <button type="button" id="install" class="button button-tonal"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg><span>安装 / 更新管理器</span></button>
+        </article>
+
+        <article class="surface-card">
+          <div class="card-heading">
+            <span class="card-icon"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></span>
+            <div><h3>注入与恢复</h3><p>仅针对 system_server 的原生后端</p></div>
+          </div>
+          <div class="notice" id="action-notice" data-tone="neutral">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+            <span id="action-notice-text">首次安装后请重启，再执行一次注入测试。</span>
+          </div>
+          <div class="actions">
+            <button type="button" id="start" class="button button-filled"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg><span id="start-label">测试注入并启用</span></button>
+            <button type="button" id="stop" class="button button-outlined"><svg class="icon" aria-hidden="true"><use href="#i-stop"></use></svg><span>关闭自动启动</span></button>
+          </div>
+          <p class="helper">关闭自动启动不会立即卸载已加载的 Hook；需要重启才能完全卸载。</p>
+        </article>
+      </section>
+
+      <section class="section" aria-labelledby="logs-heading">
+        <div class="section-heading"><h2 id="logs-heading">诊断日志</h2></div>
+        <article class="surface-card log-card">
+          <div class="log-header">
+            <div class="log-title"><svg class="icon" aria-hidden="true"><use href="#i-terminal"></use></svg><span>service.log / 操作输出</span></div>
+            <div class="log-tools">
+              <button type="button" id="logs" class="button button-text">读取日志</button>
+              <button type="button" id="copy" class="icon-button" title="复制日志" aria-label="复制日志"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg></button>
+            </div>
+          </div>
+          <pre id="output" tabindex="0" role="log" aria-live="polite" aria-label="模块运行日志">按“读取日志”查看最近的运行记录。</pre>
+        </article>
+      </section>
+
+      <section class="section appearance" aria-label="外观设置">
+        <div class="theme-row"><span>外观</span><div class="segmented" role="group" aria-label="颜色主题"><button type="button" data-theme-option="system" aria-pressed="true">跟随系统</button><button type="button" data-theme-option="light" aria-pressed="false">浅色</button><button type="button" data-theme-option="dark" aria-pressed="false">深色</button></div></div>
+      </section>
+      <footer>独立 SukiSU 后端 · 不依赖 Zygisk · 所有操作均在本机执行</footer>
+    </main>
+  </div>
+
+  <div class="dialog-scrim" id="confirm-backdrop" hidden>
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" tabindex="-1">
+      <span class="dialog-icon"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+      <h2 id="confirm-title">确认操作</h2>
+      <p id="confirm-body"></p>
+      <div class="dialog-actions"><button type="button" id="confirm-cancel" class="button button-text">取消</button><button type="button" id="confirm-accept" class="button button-text">继续</button></div>
+    </div>
+  </div>
+  <div id="snackbar" class="snackbar" role="status" aria-live="polite" hidden></div>
 </body>
 </html>
