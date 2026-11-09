@@ -6,6 +6,18 @@ trap 'rm -rf "$TMP"' EXIT
 MOD="$TMP/module"
 mkdir -p "$MOD/bin" "$TMP/mock"
 cp "$ROOT/sukisu/module/action.sh" "$ROOT/sukisu/module/state.sh" "$MOD/"
+# A real Action always runs alongside a valid Android system_server. Do not
+# derive lock ownership from a missing host PID in the test.
+cat >> "$MOD/state.sh" <<'EOF'
+hma_process_start() {
+  [ "$1" = 4101 ] && echo 701
+}
+EOF
+cat > "$TMP/mock/pidof" <<'EOF'
+#!/bin/sh
+[ "$1" = system_server ] && echo 4101
+EOF
+chmod +x "$TMP/mock/pidof"
 touch "$MOD/bin/hma-injector"
 chmod +x "$MOD/bin/hma-injector"
 
