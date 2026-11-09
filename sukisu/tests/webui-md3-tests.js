@@ -28,7 +28,10 @@ for (const token of ['--md-primary', '--md-on-primary', '--md-primary-container'
   '--shape-xl', 'prefers-reduced-motion', 'focus-visible']) {
   assert(css.includes(token), 'Missing Material Design 3 design token: ' + token);
 }
-assert(!/https?:\/\/|@import|<script[^>]*src="https?:/.test(html + css),
+// An inline SVG xmlns="http://www.w3.org/2000/svg" is a namespace,
+ // not a network request. Only forbid external resources and CSS imports.
+assert(!/<(?:script|link)[^>]*(?:src|href)="https?:\/\//i.test(html) &&
+       !/@import\b|url\(\s*['"]?https?:\/\//i.test(css),
   'WebUI resources must remain offline and self-contained');
 assert(!/innerHTML\s*=/.test(app), 'Do not inject root shell output as HTML');
 
