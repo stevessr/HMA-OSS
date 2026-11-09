@@ -15,6 +15,7 @@ const STATUS_MAP = {
   autostart: { enabled: ['已启用', 'positive'], disabled: ['未启用', 'neutral'] }
 };
 let pending = false;
+let confirming = false;
 let seq = 0;
 let state = null;
 let snackbarTimer = null;
@@ -140,12 +141,13 @@ function renderStatus(data) {
 }
 function syncButtons() {
   const disabled = !state || state.module === 'disabled';
-  ACTION_IDS.forEach(id => { $(id).disabled = pending; });
-  $('install').disabled = pending || disabled || (state && state.bundled !== 'yes');
-  $('start').disabled = pending || disabled || (state && state.reboot === 'pending') ||
+  const locked = pending || confirming;
+  ACTION_IDS.forEach(id => { $(id).disabled = locked; });
+  $('install').disabled = locked || disabled || (state && state.bundled !== 'yes');
+  $('start').disabled = locked || disabled || (state && state.reboot === 'pending') ||
     (state && state.injection === 'failed_this_system_server');
-  $('stop').disabled = pending || disabled || !state || state.autostart !== 'enabled';
-  $('copy').disabled = pending || !output.textContent.trim();
+  $('stop').disabled = locked || disabled || !state || state.autostart !== 'enabled';
+  $('copy').disabled = locked || !output.textContent.trim();
 }
 function showOutput(text) {
   output.textContent = text || '命令已执行，未返回输出。';
@@ -157,6 +159,8 @@ async function refreshStatus() {
 }
 function requestConfirmation(title, description) {
   return new Promise(resolve => {
+    confirming = true;
+    syncButtons();
     const backdrop = $('confirm-backdrop');
     const accept = $('confirm-accept');
     const cancel = $('confirm-cancel');
@@ -171,6 +175,8 @@ function requestConfirmation(title, description) {
       backdrop.removeEventListener('click', outside);
       document.removeEventListener('keydown', keydown);
       backdrop.hidden = true;
+      confirming = false;
+      syncButtons();
       if (oldFocus && oldFocus.focus) oldFocus.focus();
       resolve(yes);
     }
@@ -194,7 +200,7 @@ function requestConfirmation(title, description) {
   });
 }
 async function perform(command) {
-  if (pending) return;
+  if (pending || confirming) return;
   const prompts = {
     install: ['安装管理器 APK', '将使用模块自带的签名 APK 更新管理器；签名不一致时不会删除现有应用或数据。'],
     start: ['启动原生后端', '将对当前 system_server 执行实验性注入。请确认设备已经完成重启。']
@@ -240,8 +246,11 @@ async function copyLog() {
       input.style.opacity = '0';
       document.body.appendChild(input);
       input.select();
-      if (!document.execCommand('copy')) throw new Error('不支持复制');
-      input.remove();
+      try {
+        if (!document.execCommand('copy')) throw new Error('不支持复制');
+      } finally {
+        input.remove();
+      }
     }
     notify('日志已复制到剪贴板');
   } catch (_) {

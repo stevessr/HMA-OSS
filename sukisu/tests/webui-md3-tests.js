@@ -94,6 +94,20 @@ async function main() {
   assert.equal(elements.start.disabled, false);
   assert.equal(elements.stop.disabled, true);
 
+  // Consent dialog is MD3-styled, single-instance and fail-closed. Cancel
+  // must not run a root command, and duplicate clicks must not race.
+  const cancelled = elements.start.click();
+  assert.equal(elements['confirm-backdrop'].hidden, false);
+  assert.equal(elements.start.disabled, true);
+  await elements['confirm-cancel'].click();
+  await cancelled;
+  assert.equal(calls.filter(cmd => cmd.endsWith(' start')).length, 0);
+  const accepted = elements.start.click();
+  assert.equal(elements.start.disabled, true);
+  await elements['confirm-accept'].click();
+  await accepted;
+  assert.equal(calls.filter(cmd => cmd.endsWith(' start')).length, 1);
+
   modes[2].click();
   assert.equal(document.documentElement.attributes['data-theme'], 'dark');
   assert.equal(modes[2].attributes['aria-pressed'], 'true');
@@ -127,7 +141,7 @@ async function main() {
   await wait();
   assert.equal(elements.start.disabled, true, 'Failed target must stay locked');
   assert.equal(elements['status-hero'].dataset.tone, 'error');
-  assert.equal(calls.filter(cmd => cmd.endsWith(' status')).length, 5);
+  assert.equal(calls.filter(cmd => cmd.endsWith(' status')).length, 6);
   console.log('Material 3 WebUI design + status/command/theme/permission regression passed');
 }
 main().catch(err => { console.error(err); process.exitCode = 1; });
