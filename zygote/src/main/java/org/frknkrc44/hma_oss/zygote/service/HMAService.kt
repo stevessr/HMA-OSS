@@ -63,7 +63,6 @@ import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.getLaunchIntentForP
 import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.isConflictingModuleInstalled
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.ensureFileIsRW
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.findAndVerifyAppSignature
-import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.getPackagesForUidLocal
 import org.frknkrc44.hma_oss.zygote.util.UserManagerUtils
 import java.io.File
 import java.lang.reflect.Modifier
@@ -392,7 +391,12 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
                     it.extraOppositeAppList.isNotEmpty() ||
                     it.applyTemplates.isNotEmpty() || it.applyPresets.isNotEmpty()
             }
-            if (!config.disableActivityLaunchProtection && hasHideRules) {
+            // Per-app inversion may re-enable protection even when the global
+            // disable switch is on. Evaluate both together for correctness.
+            val hasActivityPolicy = hasHideRules && scoped.any {
+                it.invertActivityLaunchProtection == config.disableActivityLaunchProtection
+            }
+            if (hasActivityPolicy) {
                 installOnce("activity") { ActivityHook() }
                 installOnce("broadcast") { BroadcastHook() }
             }
@@ -445,12 +449,14 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     fun isHookEnabled(packageName: String?) = config.scope.containsKey(packageName)
 
-    fun isScopedCallerUid(uid: Int): Boolean {
-        if (uid <= 0 || config.scope.isEmpty()) return false
-        scopedUidCache[uid]?.let { return it }
-        // This expensive lookup is done once per UID until config or package
-        // state changes. Never hold a map lock across a framework query.
-        val scoped = getPackagesForUidLocal(pms, uid).any { config.scope.containsKey(it) }
+    fun scopedCallerUidCached(uid: Int): Boolean? = scopedUidCache[uid]
+
+    fun rememberScopedCallerUid(uid: Int, callingApps: Array<String>?): Boolean {
+        // Resolve using each API-specific caller resolver (some OEM versions
+        // use a Computer snapshot rather than a PackageManager binder call).
+        // Never permanently cache an unavailable/empty lookup as negative.
+        if (uid <= 0 || callingApps.isNullOrEmpty()) return false
+        val scoped = callingApps.any { config.scope.containsKey(it) }
         scopedUidCache.putIfAbsent(uid, scoped)
         return scoped
     }

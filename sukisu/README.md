@@ -82,3 +82,5 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - For minimum playback interference, activity and broadcast interception now attach only when a configured scope actually has a hide rule, and the old **global USB_STATE broadcast mutation has been removed**: it previously changed broadcasts visible to apps that had no HMA policy. Package-manager hooks remain system_server-only and use a no-scope fast return.
 
 - PackageManager hot paths now cache per-UID scoped membership. An app with no HMA configuration returns before target package inspection and filter-rule evaluation. The cache is invalidated when app installation state or HMA configuration changes.
+
+- The fast path resolves per-UID package membership through the same OEM-specific resolver as the active hook, caches only valid results, and does not perform an additional Binder lookup. Per-app activity protection inversion remains respected when selectively enabling activity hooks.

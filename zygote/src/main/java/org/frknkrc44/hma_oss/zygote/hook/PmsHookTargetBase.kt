@@ -31,7 +31,12 @@ abstract class PmsHookTargetBase : IFrameworkHook {
         if (callingUid == null || callingUid == Constants.UID_SYSTEM) return
         // Fast rejection for the vast majority of unconfigured applications.
         // Avoid resolving package targets or running hide rules for media apps.
-        if (!service.isScopedCallerUid(callingUid)) return
+        val scopeCached = service.scopedCallerUidCached(callingUid)
+        if (scopeCached == false) return
+        // Use the same resolver as the actual hook to avoid extra Binder
+        // queries and to retain OEM Computer snapshot compatibility.
+        val firstCallingApps = if (scopeCached == null) findCallingApps(pms, callingUid) else null
+        if (scopeCached == null && !service.rememberScopedCallerUid(callingUid, firstCallingApps)) return
 
         val targetApp = findTargetApp() ?: return
         logV(TAG) { "@$methodName incoming query: $callingUid => $targetApp" }
@@ -41,7 +46,7 @@ abstract class PmsHookTargetBase : IFrameworkHook {
             logD(TAG) { "@$methodName caller cache: $callingUid, target: $targetApp" }
             return
         }
-        val callingApps = findCallingApps(pms, callingUid)
+        val callingApps = firstCallingApps ?: findCallingApps(pms, callingUid)
         val caller = callingApps?.firstOrNull { service.shouldHide(it, targetApp) }
         if (caller != null) {
             logD(TAG) { "@$methodName caller: $callingUid $caller, target: $targetApp" }
