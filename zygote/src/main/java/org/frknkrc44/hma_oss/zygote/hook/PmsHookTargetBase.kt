@@ -29,6 +29,9 @@ abstract class PmsHookTargetBase : IFrameworkHook {
 
         val callingUid = findCallingUid()
         if (callingUid == null || callingUid == Constants.UID_SYSTEM) return
+        // Fast rejection for the vast majority of unconfigured applications.
+        // Avoid resolving package targets or running hide rules for media apps.
+        if (!service.isScopedCallerUid(callingUid)) return
 
         val targetApp = findTargetApp() ?: return
         logV(TAG) { "@$methodName incoming query: $callingUid => $targetApp" }

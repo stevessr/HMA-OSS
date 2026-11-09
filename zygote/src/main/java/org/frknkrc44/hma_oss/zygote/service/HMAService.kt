@@ -63,11 +63,13 @@ import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.getLaunchIntentForP
 import org.frknkrc44.hma_oss.zygote.util.PackageManagerUtils.isConflictingModuleInstalled
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.ensureFileIsRW
 import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.findAndVerifyAppSignature
+import org.frknkrc44.hma_oss.zygote.util.ServiceUtils.getPackagesForUidLocal
 import org.frknkrc44.hma_oss.zygote.util.UserManagerUtils
 import java.io.File
 import java.lang.reflect.Modifier
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.Path
 
 class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
@@ -85,6 +87,9 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
     // Each group is attached at most once. Do not install a broad hook surface
     // merely because one configured caller needs basic PackageManager hiding.
     private val installedHookGroups = mutableSetOf<String>()
+    // Cache negative lookups for unconfigured callers to avoid repeated
+    // PackageManager work on unrelated video/graphics application requests.
+    private val scopedUidCache = ConcurrentHashMap<Int, Boolean>()
 
     private var managerWorkMode: Int = Constants.MANAGER_WORK_MODE_UNKNOWN
 
@@ -107,6 +112,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
     internal var appUid = 0
         private set
 
+    @Volatile
     var config = JsonConfig().apply { detailLog = true }
         private set
 
@@ -439,6 +445,16 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     fun isHookEnabled(packageName: String?) = config.scope.containsKey(packageName)
 
+    fun isScopedCallerUid(uid: Int): Boolean {
+        if (uid <= 0 || config.scope.isEmpty()) return false
+        scopedUidCache[uid]?.let { return it }
+        // This expensive lookup is done once per UID until config or package
+        // state changes. Never hold a map lock across a framework query.
+        val scoped = getPackagesForUidLocal(pms, uid).any { config.scope.containsKey(it) }
+        scopedUidCache.putIfAbsent(uid, scoped)
+        return scoped
+    }
+
     fun isAnySettingsReplacementsEnabled(packageName: String?) = config.scope[packageName]?.let {
         it.applySettingsPresets.isNotEmpty() || it.applySettingTemplates.isNotEmpty()
     } ?: false
@@ -588,6 +604,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
                     return
                 }
                 config = newConfig
+                scopedUidCache.clear()
                 ensureFileIsRW(configFile, true)
                 configFile.writeText(json)
                 dataHolder.clearUidCache()
@@ -643,6 +660,8 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
 
     override fun handlePackageEvent(eventType: String?, packageName: String?, extras: Bundle?) {
         if (eventType == null || packageName == null) return
+        // UID -> package associations can change after install/uninstall.
+        scopedUidCache.clear()
 
         AppPresets.instance.apply {
             when (eventType) {
@@ -897,6 +916,7 @@ class HMAService(val pms: IPackageManager, val pmn: Any?) : IHMAService.Stub() {
         if (config != loading) {
             loading.cleanRemnantsFromConfig()
             config = loading
+            scopedUidCache.clear()
         }
 
         if (config.configVersion != BuildConfig.CONFIG_VERSION) {
