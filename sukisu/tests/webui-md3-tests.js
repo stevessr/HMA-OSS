@@ -127,7 +127,7 @@ async function main() {
   await wait();
   assert.equal(elements.start.disabled, true, 'Failed target must stay locked');
   assert.equal(elements['status-hero'].dataset.tone, 'error');
-  assert.equal(calls.filter(cmd => cmd.endsWith(' status')).length, 4);
+  assert.equal(calls.filter(cmd => cmd.endsWith(' status')).length, 5);
   console.log('Material 3 WebUI design + status/command/theme/permission regression passed');
 }
 main().catch(err => { console.error(err); process.exitCode = 1; });
