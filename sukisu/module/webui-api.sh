@@ -38,7 +38,9 @@ case "${1:-status}" in
     ;;
   start)
     if [ -f "$MODDIR/enabled" ]; then
-      echo 'Next-boot autostart is already enabled.'
+      # A soft reboot can leave autostart enabled without this new process
+      # having an injected backend. Verify/recover rather than saying done.
+      sh "$MODDIR/try-inject.sh"
     else
       sh "$MODDIR/action.sh"
     fi

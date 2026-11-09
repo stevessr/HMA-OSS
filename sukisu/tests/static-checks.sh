@@ -13,14 +13,20 @@ bash -n "$ROOT/sukisu/tests/lazy-scoped-hooks-tests.sh"
 bash -n "$ROOT/sukisu/tests/boot-recovery-tests.sh"
 bash -n "$ROOT/sukisu/tests/manager-apk-tests.sh"
 bash -n "$ROOT/sukisu/tests/webui-tests.sh"
+bash -n "$ROOT/sukisu/tests/soft-reboot-monitor-tests.sh"
 bash "$ROOT/sukisu/tests/state-tests.sh"
-bash "$ROOT/sukisu/tests/action-tests.sh"
+if ! bash "$ROOT/sukisu/tests/action-tests.sh"; then
+  echo 'Action regression failed; tracing mock state transitions:' >&2
+  bash -x "$ROOT/sukisu/tests/action-tests.sh"
+  exit 1
+fi
 bash "$ROOT/sukisu/tests/legacy-migration-tests.sh"
 bash "$ROOT/sukisu/tests/install-uninstall-tests.sh"
 bash "$ROOT/sukisu/tests/lazy-scoped-hooks-tests.sh"
 bash "$ROOT/sukisu/tests/boot-recovery-tests.sh"
 bash "$ROOT/sukisu/tests/manager-apk-tests.sh"
 bash "$ROOT/sukisu/tests/webui-tests.sh"
+bash "$ROOT/sukisu/tests/soft-reboot-monitor-tests.sh"
 grep -qx 'id=hma_sukisu' "$ROOT/sukisu/module/module.prop"
 grep -q 'AttachCurrentThread' "$ROOT/sukisu/native/payload.cpp"
 grep -q 'PTRACE_ATTACH' "$ROOT/sukisu/native/injector.cpp"

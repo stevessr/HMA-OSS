@@ -2,7 +2,13 @@
 # Restore module-controlled state without deleting persistent user HMA settings.
 MODDIR="${0%/*}"
 rm -f "$MODDIR/enabled" "$MODDIR/injected_pid" "$MODDIR/injection_failed" \
-  "$MODDIR/installed_boot_id" "$MODDIR/injected_pid."*
+  "$MODDIR/installed_boot_id" "$MODDIR/attempt_budget" "$MODDIR/injected_pid."*
+if [ -d "$MODDIR/.monitor-lock" ]; then
+  # No active monitor should be running during final module removal. KernelSU
+  # removes this module directory; do not touch arbitrary external paths.
+  rm -f "$MODDIR/.monitor-lock/owner"
+  rmdir "$MODDIR/.monitor-lock" 2>/dev/null || :
+fi
 if [ -d "$MODDIR/.inject-lock" ]; then
   rm -f "$MODDIR/.inject-lock/boot"
   rmdir "$MODDIR/.inject-lock" 2>/dev/null || :

@@ -31,6 +31,39 @@ printf 'old-kernel\n' > "$TEMP/installed_boot_id"
 hma_install_reboot_pending "$TEMP/installed_boot_id" old-kernel 123
 ! hma_install_reboot_pending "$TEMP/installed_boot_id" different-kernel 123
 
+# Same-kernel framework restart must reclaim a dead system_server's
+# injection lock, while it must never steal from the same process instance.
+hma_acquire_lock "$TEMP/soft-lock" boot-F 4101 701
+! hma_acquire_lock "$TEMP/soft-lock" boot-F 4101 701
+hma_acquire_lock "$TEMP/soft-lock" boot-F 4102 702
+! hma_acquire_lock "$TEMP/soft-lock" boot-F 4102 702
+# A previous process must not delete the newly acquired lock on exit.
+! hma_release_lock "$TEMP/soft-lock" boot-F 4101 701
+[ -f "$TEMP/soft-lock/boot" ]
+hma_release_lock "$TEMP/soft-lock" boot-F 4102 702
+mkdir "$TEMP/legacy-lock"
+printf 'boot-F\n' > "$TEMP/legacy-lock/boot"
+! hma_acquire_lock "$TEMP/legacy-lock" boot-F 4102 702
+
+# Native attach attempts are bounded, but a healthy handshake resets budget.
+hma_record_native_attempt "$TEMP/budget" boot-F
+hma_record_native_attempt "$TEMP/budget" boot-F
+! hma_record_native_attempt "$TEMP/budget" boot-F
+[ "$(awk '{print $3}' "$TEMP/budget")" = 2 ]
+rm -f "$TEMP/budget"
+hma_record_native_attempt "$TEMP/budget" boot-F
+hma_record_native_attempt "$TEMP/budget" boot-G
+[ "$(awk '{print $3}' "$TEMP/budget")" = 1 ]
+
+# Only one live monitor may observe a boot, and dead-owner lock is reclaimable.
+hma_monitor_lock "$TEMP/monitor" boot-F
+! hma_monitor_lock "$TEMP/monitor" boot-F
+hma_monitor_release "$TEMP/monitor"
+mkdir "$TEMP/monitor"
+printf 'boot-F 999999 1\n' > "$TEMP/monitor/owner"
+hma_monitor_lock "$TEMP/monitor" boot-F
+hma_monitor_release "$TEMP/monitor"
+
 # Exercise lock helper BEFORE any other function so nested function definitions fail.
 hma_acquire_lock "$TEMP/early-lock" boot-A
 hma_release_lock "$TEMP/early-lock"
