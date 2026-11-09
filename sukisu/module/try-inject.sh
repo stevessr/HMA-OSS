@@ -33,7 +33,7 @@ if ! hma_acquire_lock "$LOCKDIR" "$BOOT_ID" "$PID" "$START_TICKS"; then
   echo 'An injection attempt is already running or has an uncleared lock'
   exit 10
 fi
-trap 'hma_release_lock "$LOCKDIR"' EXIT
+trap 'hma_release_lock "$LOCKDIR" "$BOOT_ID" "$PID" "$START_TICKS"' EXIT
 trap 'exit 130' INT TERM HUP
 
 # A previously verified injection in this exact process must never be repeated.

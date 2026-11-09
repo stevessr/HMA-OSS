@@ -37,7 +37,10 @@ hma_acquire_lock "$TEMP/soft-lock" boot-F 4101 701
 ! hma_acquire_lock "$TEMP/soft-lock" boot-F 4101 701
 hma_acquire_lock "$TEMP/soft-lock" boot-F 4102 702
 ! hma_acquire_lock "$TEMP/soft-lock" boot-F 4102 702
-hma_release_lock "$TEMP/soft-lock"
+# A previous process must not delete the newly acquired lock on exit.
+! hma_release_lock "$TEMP/soft-lock" boot-F 4101 701
+[ -f "$TEMP/soft-lock/boot" ]
+hma_release_lock "$TEMP/soft-lock" boot-F 4102 702
 mkdir "$TEMP/legacy-lock"
 printf 'boot-F\n' > "$TEMP/legacy-lock/boot"
 ! hma_acquire_lock "$TEMP/legacy-lock" boot-F 4102 702

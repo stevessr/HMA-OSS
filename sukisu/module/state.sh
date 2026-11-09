@@ -88,6 +88,15 @@ hma_acquire_lock() {
 }
 
 hma_release_lock() {
+  # Old injector may still be exiting when a new framework instance takes
+  # over its stale lock. Never let that old trap delete the new owner's lock.
+  if [ "$#" -ge 4 ]; then
+    [ -r "$1/boot" ] || return 1
+    hma_release_boot='' hma_release_pid='' hma_release_start=''
+    IFS=' ' read -r hma_release_boot hma_release_pid hma_release_start < "$1/boot" || return 1
+    [ "$hma_release_boot" = "$2" ] && [ "$hma_release_pid" = "$3" ] &&
+      [ "$hma_release_start" = "$4" ] || return 1
+  fi
   rm -f "$1/boot"
   rmdir "$1" 2>/dev/null || true
 }

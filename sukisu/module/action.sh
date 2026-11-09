@@ -12,12 +12,14 @@ fi
 # Disabling autostart must not race an active system_server injection.
 if [ -f "$MODDIR/enabled" ]; then
   LOCKDIR="$MODDIR/.inject-lock"
-  hma_acquire_lock "$LOCKDIR" "$BOOT_ID" "$(pidof system_server 2>/dev/null | awk '{print $1}')" "$(hma_system_server_start)" || {
+  ACTION_PID=$(pidof system_server 2>/dev/null | awk '{print $1}')
+  ACTION_START=$(hma_process_start "$ACTION_PID")
+  hma_acquire_lock "$LOCKDIR" "$BOOT_ID" "$ACTION_PID" "$ACTION_START" || {
     echo 'Injection in progress; retry Action after it finishes'
     exit 10
   }
   rm -f "$MODDIR/enabled"
-  hma_release_lock "$LOCKDIR"
+  hma_release_lock "$LOCKDIR" "$BOOT_ID" "$ACTION_PID" "$ACTION_START"
   echo 'Autostart disabled. Loaded hooks remain until reboot.'
   exit 0
 fi
