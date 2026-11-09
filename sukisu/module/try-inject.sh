@@ -45,12 +45,15 @@ if hma_pid_marker_matches "$MODDIR/injected_pid" "$BOOT_ID" "$PID" "$START_TICKS
   exit 9
 fi
 
-APK=$(cmd package path org.frknkrc44.hma_oss 2>/dev/null |
-  sed -n 's/^package:\(.*base\.apk\)$/\1/p' | head -n 1)
-[ -n "$APK" ] && [ -r "$APK" ] || {
-  echo 'HMA manager APK is missing or unreadable by the injector'
-  exit 1
+# The ZIP already contains manager.apk. PackageManager will not expose its
+# path until the manager app is installed; install from our bundled file when
+# absent, before attaching to system_server.
+. "$MODDIR/manager-apk.sh" || exit 1
+APK=$(hma_manager_resolve) || {
+  echo 'Cannot resolve the HMA manager. Open the SukiSU module WebUI to install it.'
+  exit 13
 }
+[ -r "$APK" ] || { echo 'Resolved manager path is unreadable'; exit 13; }
 
 # mtime is in whole seconds on common Android stat implementations. Deliberately
 # cross a second boundary to exclude a workMode=1 left by a previous boot/load.

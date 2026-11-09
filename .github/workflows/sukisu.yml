@@ -70,7 +70,7 @@ jobs:
           bash sukisu/package.sh "$apk" sukisu/native/build sukisu/build/HMA-OSS-SukiSU-experimental.zip
           unzip -l sukisu/build/HMA-OSS-SukiSU-experimental.zip | tee sukisu/build/package-manifest.txt
           unzip -tqq sukisu/build/HMA-OSS-SukiSU-experimental.zip
-          for entry in manager.apk bin/hma-injector lib/libhma-payload.so module.prop skip_mount action.sh service.sh state.sh try-inject.sh customize.sh legacy-cleanup.sh uninstall.sh; do
+          for entry in manager.apk bin/hma-injector lib/libhma-payload.so module.prop skip_mount action.sh service.sh state.sh try-inject.sh customize.sh legacy-cleanup.sh uninstall.sh manager-apk.sh webui-api.sh webroot/index.html webroot/app.js webroot/style.css; do
             unzip -Z1 sukisu/build/HMA-OSS-SukiSU-experimental.zip | grep -qx "$entry"
           done
 
