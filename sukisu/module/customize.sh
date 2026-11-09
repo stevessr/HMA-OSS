@@ -11,7 +11,9 @@ case "$SDK" in ''|*[!0-9]*) abort '! Cannot determine Android API level' ;; esac
 [ -f "$MODPATH/legacy-cleanup.sh" ] || abort '! Legacy cleanup helper missing; use a complete module ZIP'
 [ -f "$MODPATH/bin/hma-injector" ] || abort '! Native injector missing'
 [ -f "$MODPATH/lib/libhma-payload.so" ] || abort '! Native payload missing'
-[ -f "$MODPATH/manager.apk" ] || abort '! HMA-OSS manager APK missing'
+[ -s "$MODPATH/manager.apk" ] || abort '! HMA-OSS manager APK missing'
+[ -f "$MODPATH/manager-apk.sh" ] || abort '! Manager APK helper missing'
+[ -f "$MODPATH/webroot/index.html" ] || abort '! KernelSU WebUI missing'
 
 . "$MODPATH/legacy-cleanup.sh" || abort '! Cannot load legacy cleanup helper'
 . "$MODPATH/state.sh" || abort '! Cannot load boot state helpers'

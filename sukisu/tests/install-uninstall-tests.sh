@@ -12,8 +12,11 @@ printf 'id=hma_sukisu\n' > "$MOD/module.prop"
 printf 'id=hma_oss_zygisk\n' > "$ADB/modules/hma_oss_zygisk/module.prop"
 printf 'kept-config\n' > "$TMP/config/hide_my_applist_keep/config.json"
 printf 'MODDIR=/data/adb/modules/hma_oss_zygisk\ncp "$MODDIR/module.prop.bak" "$MODDIR/module.prop"\n' > "$ADB/boot-completed.d/hmaoss.sh"
-touch "$MOD/bin/hma-injector" "$MOD/lib/libhma-payload.so" "$MOD/manager.apk"
-cp "$ROOT/sukisu/module/legacy-cleanup.sh" "$ROOT/sukisu/module/state.sh" "$MOD/"
+touch "$MOD/bin/hma-injector" "$MOD/lib/libhma-payload.so"
+printf 'mock-apk' > "$MOD/manager.apk"
+mkdir -p "$MOD/webroot"
+cp "$ROOT/sukisu/module/webroot/index.html" "$MOD/webroot/"
+cp "$ROOT/sukisu/module/legacy-cleanup.sh" "$ROOT/sukisu/module/state.sh" "$ROOT/sukisu/module/manager-apk.sh" "$MOD/"
 
 # Rewrite only the fixed /data/adb fixture root in a disposable script copy.
 sed "s@hma_legacy_migrate /data/adb@hma_legacy_migrate $ADB@" \

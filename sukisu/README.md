@@ -86,3 +86,14 @@ The pinned experimental certificate SHA-256 fingerprint is:
 - The fast path resolves per-UID package membership through the same OEM-specific resolver as the active hook, caches only valid results, and does not perform an additional Binder lookup. Per-app activity protection inversion remains respected when selectively enabling activity hooks.
 
 - The hot ZygoteProcess-start hook now attaches only if a configured app requests restricted process permissions or data isolation actually requires force-mounting. A lightweight package-event listener remains for manager signature changes and config/cache correctness.
+
+
+## Manager APK discovery and KernelSU / SukiSU WebUI
+
+- The module ZIP contains `manager.apk`; `cmd package path` only reports the installed Android application, not files bundled in an SukiSU module. The injector now first resolves the installed application using `cmd package path` or `pm path`, and when missing uses `pm install -r` on the **bundled APK** before any native attach. Installation failure is reported explicitly; it never uninstalls another APK or clears data to bypass a signature mismatch.
+- Open the module's **WebUI** in SukiSU/KernelSU to inspect manager installation, pending reboot, system_server identity, injected/autostart state and service log. The interface provides **Install/Update manager APK**, **Test injection / Enable next boot**, **Disable next-boot injection**, refresh and log actions. Root shell requests use only predefined, fixed shell operations, and no public network or external JavaScript dependencies.
+- Web assets live in `webroot/` and are included in the top level of the installable module ZIP.
+
+## Direct GitHub Actions download
+
+`actions/upload-artifact@v7` uses `archive: false` for the **single already-built module ZIP**. Downloading the workflow artifact yields `HMA-OSS-SukiSU-experimental.zip` directly; no ZIP-within-a-ZIP is created. The workflow verifies the root entries before upload.

@@ -28,7 +28,8 @@ for binary in "$NATIVE/hma-injector" "$NATIVE/libhma-payload.so"; do
 done
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-cp "$ROOT/sukisu/module/"* "$STAGE/"
+# Preserve nested webroot/ (cp without -R previously ignored subdirectories).
+cp -R "$ROOT/sukisu/module/." "$STAGE/"
 mkdir -p "$STAGE/bin" "$STAGE/lib"
 cp "$NATIVE/hma-injector" "$STAGE/bin/hma-injector"
 cp "$NATIVE/libhma-payload.so" "$STAGE/lib/libhma-payload.so"

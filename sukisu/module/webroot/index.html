@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>HMA-OSS · SukiSU</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <main class="layout">
+    <header class="hero">
+      <span class="eyebrow">SukiSU · ROOT MODULE</span>
+      <h1>HMA-OSS</h1>
+      <p>独立原生后端 · 不依赖 Zygisk</p>
+      <span class="tag">EXPERIMENTAL</span>
+    </header>
+    <section class="panel">
+      <div class="section-title"><h2>模块状态</h2><button type="button" id="refresh" class="ghost">刷新</button></div>
+      <div class="metrics">
+        <div class="metric"><span>管理器 APK</span><strong id="manager">检测中…</strong></div>
+        <div class="metric"><span>重启要求</span><strong id="reboot">检测中…</strong></div>
+        <div class="metric"><span>原生注入</span><strong id="injection">检测中…</strong></div>
+        <div class="metric"><span>开机自动启动</span><strong id="autostart">检测中…</strong></div>
+      </div>
+      <p class="meta" id="device">正在读取设备状态</p>
+    </section>
+    <section class="panel">
+      <h2>管理器</h2>
+      <p class="muted">模块已内置签名固定的 manager.apk。尚未安装时可以直接在这里安装或更新；签名不一致时不会卸载已有应用。</p>
+      <button type="button" id="install" class="primary">安装 / 更新内置管理器 APK</button>
+    </section>
+    <section class="panel">
+      <h2>注入控制</h2>
+      <p class="muted">首次安装后需重启，再进行一次注入测试。禁用自动启动不会立即卸载 system_server 中已经加载的 Hook。</p>
+      <div class="controls">
+        <button type="button" id="start" class="primary">测试注入并启用开机启动</button>
+        <button type="button" id="stop" class="secondary">禁用开机自动启动</button>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="section-title"><h2>运行日志</h2><button type="button" id="logs" class="ghost">读取</button></div>
+      <pre id="output" role="status" aria-live="polite">可在此查看操作结果和最近的 service.log。</pre>
+    </section>
+    <footer>仅在 KernelSU/SukiSU 管理器内运行 · 不上传日志或设备信息</footer>
+  </main>
+</body>
+</html>
